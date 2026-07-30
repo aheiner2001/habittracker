@@ -50,6 +50,7 @@ let storageError = null;
 let activeView = 'today';
 let calendarCursor = startOfMonth(new Date());
 let calendarFilterId = 'all';
+let selectedDateKey = todayKey();
 
 function todayKey(d = new Date()) {
   const y = d.getFullYear();
@@ -156,6 +157,16 @@ function formatMonthLabel(date) {
   });
 }
 
+function formatDateKey(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return formatLongDate(new Date(y, m - 1, d));
+}
+
+function parseDateKey(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function dayMatchesFilter(dateKey) {
   if (calendarFilterId === 'all') {
     const count = startedCount(dateKey);
@@ -164,6 +175,91 @@ function dayMatchesFilter(dateKey) {
     return 'partial';
   }
   return isStarted(dateKey, calendarFilterId) ? 'hit' : 'none';
+}
+
+function densityClass(dateKey) {
+  if (calendarFilterId !== 'all') return '';
+  const count = startedCount(dateKey);
+  if (count === 0) return '';
+  if (count === IDENTITIES.length) return 'density-6';
+  return `density-${count}`;
+}
+
+function monthStats(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayKey();
+  let withAny = 0;
+  let full = 0;
+  let countable = 0;
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = todayKey(new Date(year, month, day));
+    if (dateKey > today) continue;
+    countable += 1;
+    const count = startedCount(dateKey);
+    if (count > 0) withAny += 1;
+    if (count === IDENTITIES.length) full += 1;
+  }
+  return { withAny, full, countable };
+}
+
+function ensureSelectedDateForMonth(year, month) {
+  if (selectedDateKey) {
+    const selected = parseDateKey(selectedDateKey);
+    if (selected.getFullYear() === year && selected.getMonth() === month) return;
+  }
+  const thisMonth = startOfMonth(new Date());
+  if (year === thisMonth.getFullYear() && month === thisMonth.getMonth()) {
+    selectedDateKey = todayKey();
+  } else {
+    selectedDateKey = null;
+  }
+}
+
+function renderDayDots(dateKey) {
+  if (calendarFilterId !== 'all') return '';
+  return `
+    <span class="day-dots" aria-hidden="true">
+      ${IDENTITIES.map(
+        (identity) =>
+          `<span class="day-dot${isStarted(dateKey, identity.id) ? ' is-on' : ''}"></span>`
+      ).join('')}
+    </span>
+  `;
+}
+
+function renderDayDetail() {
+  if (!selectedDateKey) {
+    return `
+      <div class="day-detail is-empty-detail">
+        <p class="day-detail-hint">Tap a day to see which identities you started.</p>
+      </div>
+    `;
+  }
+
+  const count = startedCount(selectedDateKey);
+  const isFuture = selectedDateKey > todayKey();
+
+  return `
+    <div class="day-detail">
+      <div class="day-detail-header">
+        <p class="day-detail-date">${formatDateKey(selectedDateKey)}</p>
+        <p class="day-detail-count">${
+          isFuture ? 'Future day' : `${count} of ${IDENTITIES.length} started`
+        }</p>
+      </div>
+      <ul class="day-detail-list">
+        ${IDENTITIES.map((identity) => {
+          const started = isStarted(selectedDateKey, identity.id);
+          return `
+            <li class="day-detail-item${started ? ' is-started' : ''}">
+              <span class="day-detail-name">${identity.title}</span>
+              <span class="day-detail-status">${started ? 'Started' : 'Not started'}</span>
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    </div>
+  `;
 }
 
 function renderStorageError() {
@@ -222,22 +318,47 @@ function renderProgress() {
   const root = document.getElementById('view-progress');
   const year = calendarCursor.getFullYear();
   const month = calendarCursor.getMonth();
+  ensureSelectedDateForMonth(year, month);
   const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = todayKey();
+  const stats = monthStats(year, month);
+  const showDots = calendarFilterId === 'all';
 
   const cells = [];
   for (let i = 0; i < firstWeekday; i += 1) {
-    cells.push('<div class="day-cell is-empty"></div>');
+    cells.push('<div class="day-cell is-empty" aria-hidden="true"></div>');
   }
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateKey = todayKey(new Date(year, month, day));
     const match = dayMatchesFilter(dateKey);
+    const density = densityClass(dateKey);
     const classes = ['day-cell'];
+    if (showDots) classes.push('has-dots');
     if (dateKey === today) classes.push('is-today');
+    if (dateKey === selectedDateKey) classes.push('is-selected');
     if (match === 'hit') classes.push('is-hit');
     if (match === 'partial') classes.push('is-partial');
-    cells.push(`<div class="${classes.join(' ')}" title="${dateKey}">${day}</div>`);
+    if (density) classes.push(density);
+    const count = startedCount(dateKey);
+    const label =
+      calendarFilterId === 'all'
+        ? `${formatDateKey(dateKey)}, ${count} of ${IDENTITIES.length} started`
+        : `${formatDateKey(dateKey)}, ${
+            isStarted(dateKey, calendarFilterId) ? 'started' : 'not started'
+          }`;
+    cells.push(`
+      <button
+        type="button"
+        class="${classes.join(' ')}"
+        data-date="${dateKey}"
+        aria-label="${label}"
+        aria-pressed="${dateKey === selectedDateKey}"
+      >
+        <span class="day-num">${day}</span>
+        ${renderDayDots(dateKey)}
+      </button>
+    `);
   }
 
   const fullStreak = fullDayStreak();
@@ -290,6 +411,16 @@ function renderProgress() {
           ${cells.join('')}
         </div>
       </div>
+      <div class="calendar-legend" aria-hidden="true">
+        <span><i class="swatch swatch-empty"></i> None</span>
+        <span><i class="swatch swatch-partial"></i> Some</span>
+        <span><i class="swatch swatch-full"></i> All six</span>
+      </div>
+      <p class="month-summary">
+        ${stats.withAny} of ${stats.countable} day${stats.countable === 1 ? '' : 's'} with a start
+        · ${stats.full} full day${stats.full === 1 ? '' : 's'}
+      </p>
+      ${renderDayDetail()}
     </section>
   `;
 
@@ -304,6 +435,12 @@ function renderProgress() {
   document.getElementById('calendar-filter').addEventListener('change', (event) => {
     calendarFilterId = event.target.value;
     render();
+  });
+  root.querySelectorAll('.day-cell[data-date]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedDateKey = btn.getAttribute('data-date');
+      render();
+    });
   });
 }
 
