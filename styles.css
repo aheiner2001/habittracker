@@ -95,6 +95,7 @@ button {
   border-radius: 999px;
   color: var(--muted);
   font-weight: 600;
+  transition: background 180ms ease, color 180ms ease;
 }
 
 .nav-btn.is-active {
@@ -199,7 +200,7 @@ button {
   border-radius: 16px;
   border: 1.5px solid var(--border);
   background: var(--surface-solid);
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
 .start-btn:hover {
@@ -372,6 +373,7 @@ button {
   font-size: 0.9rem;
   font-weight: 600;
   padding: 0.2rem;
+  transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
 
 .day-cell.has-dots {
@@ -568,5 +570,14 @@ button {
     min-height: 3.25rem;
     flex-direction: row;
     justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-btn,
+  .start-btn,
+  .identity-row,
+  .day-cell {
+    transition: none;
   }
 }
