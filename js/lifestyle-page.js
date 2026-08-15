@@ -33,8 +33,8 @@
     const series = Become.rollingSeries(state.weights, windowDays);
 
     root.innerHTML = `${headerHtml}
-      <main>
-        <section class="section">
+      <main class="lifestyle-grid">
+        <section class="panel panel-span">
           <h2>Today’s log</h2>
           <p>${nutrition.calories} / ${target} kcal${fasting ? ' · Fasting day' : ''}</p>
           <ul id="log-list">
@@ -51,7 +51,7 @@
           </ul>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>${fasting ? 'Fasting note' : 'Log food'}</h2>
           ${
             fasting
@@ -91,7 +91,7 @@
           }
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Add food</h2>
           <form id="add-food">
             <div class="field"><label>Name</label><input name="name" required /></div>
@@ -104,7 +104,7 @@
           </form>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Save meal from today’s log</h2>
           <form id="save-meal">
             <div class="field"><label>Meal name</label><input name="name" required placeholder="Berry smoothie" /></div>
@@ -116,7 +116,7 @@
           </form>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Weight</h2>
           <form id="log-weight">
             <div class="field"><label>Today’s weight (lb)</label><input name="lbs" type="number" step="0.1" required /></div>
@@ -130,7 +130,7 @@
           <div id="weight-chart"></div>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Measurements</h2>
           <form id="log-meas">
             <div class="field"><label>Waist</label><input name="waist" type="number" step="0.1" /></div>
@@ -143,12 +143,12 @@
           } /> Show on Home</label>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Calendar</h2>
           <div id="cal-root"></div>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Fasting</h2>
           <form id="add-fast">
             <div class="field"><label>Start (local)</label><input name="start" type="datetime-local" required /></div>
@@ -170,7 +170,7 @@
             .join('')}</ul>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>High-calorie event</h2>
           <form id="add-event">
             <div class="field"><label>Start date</label><input name="startDate" type="date" required /></div>
@@ -188,7 +188,7 @@
             .join('')}</ul>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Milestones</h2>
           <ul>${(state.goal.milestones || [])
             .map(
@@ -201,7 +201,7 @@
             .join('')}</ul>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Settings</h2>
           <form id="settings">
             <div class="field"><label>Calorie target</label><input name="calorieTarget" type="number" value="${
@@ -214,7 +214,7 @@
           </form>
         </section>
 
-        <section class="section">
+        <section class="panel panel-span">
           <h2>Backup</h2>
           <button type="button" class="btn" data-act="export">Export JSON</button>
           <div class="field">
@@ -224,6 +224,9 @@
         </section>
       </main>
       ${navHtml}`;
+
+    const dateEl = root.querySelector('#shell-date');
+    if (dateEl) dateEl.textContent = Become.formatLongDate();
 
     Become.renderWeightChart(root.querySelector('#weight-chart'), series, {
       windowDays,

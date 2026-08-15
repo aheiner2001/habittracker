@@ -51,34 +51,41 @@
 
   function renderOnboarding(container, onDone) {
     container.innerHTML = `
-      <section class="section onboarding">
-        <h2>Welcome to Become</h2>
-        <p class="tagline">A few numbers so day one isn’t blank.</p>
-        <form id="onboarding-form">
-          <div class="field">
-            <label for="ob-current">Current weight (lb)</label>
-            <input id="ob-current" name="currentWeight" type="number" step="0.1" required value="225" />
-          </div>
-          <div class="field">
-            <label for="ob-goal">Goal weight (lb)</label>
-            <input id="ob-goal" name="goalWeight" type="number" step="0.1" required value="175" />
-          </div>
-          <div class="field">
-            <label for="ob-cal">Daily calorie target</label>
-            <input id="ob-cal" name="calorieTarget" type="number" required value="1800" />
-          </div>
-          <div class="field">
-            <label for="ob-pro">Protein target (g, optional)</label>
-            <input id="ob-pro" name="proteinTarget" type="number" placeholder="e.g. 140" />
-          </div>
-          <div class="field">
-            <label for="ob-habits">Starting habits (one per line)</label>
-            <textarea id="ob-habits" name="habits" rows="4">20-min workout
+      <div class="onboarding-shell onboarding">
+        <header>
+          <p class="brand">Become</p>
+          <p class="tagline">Lose weight as a lifestyle — start with a few numbers.</p>
+        </header>
+        <section class="panel">
+          <h2>Get set</h2>
+          <form id="onboarding-form" class="stack" style="margin-top:0.75rem">
+            <div class="form-grid">
+              <div class="field">
+                <label for="ob-current">Current weight (lb)</label>
+                <input id="ob-current" name="currentWeight" type="number" step="0.1" inputmode="decimal" required value="225" />
+              </div>
+              <div class="field">
+                <label for="ob-goal">Goal weight (lb)</label>
+                <input id="ob-goal" name="goalWeight" type="number" step="0.1" inputmode="decimal" required value="175" />
+              </div>
+              <div class="field">
+                <label for="ob-cal">Daily calorie target</label>
+                <input id="ob-cal" name="calorieTarget" type="number" inputmode="numeric" required value="1800" />
+              </div>
+              <div class="field">
+                <label for="ob-pro">Protein target (g)</label>
+                <input id="ob-pro" name="proteinTarget" type="number" inputmode="numeric" placeholder="Optional" />
+              </div>
+              <div class="field field-span">
+                <label for="ob-habits">Starting habits (one per line)</label>
+                <textarea id="ob-habits" name="habits" rows="3">20-min workout
 Morning outside</textarea>
-          </div>
-          <button class="btn btn-primary" type="submit">Start</button>
-        </form>
-      </section>`;
+              </div>
+            </div>
+            <button class="btn btn-primary" type="submit">Start</button>
+          </form>
+        </section>
+      </div>`;
 
     container.querySelector('#onboarding-form').addEventListener('submit', (e) => {
       e.preventDefault();

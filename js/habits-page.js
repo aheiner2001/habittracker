@@ -7,9 +7,11 @@
     state = next;
     const saved = Become.saveState(state);
     if (errEl) {
-      errEl.hidden = saved.ok;
-      if (!saved.ok) errEl.textContent = saved.error;
-      else errEl.hidden = true;
+      if (saved.ok) errEl.hidden = true;
+      else {
+        errEl.hidden = false;
+        errEl.textContent = saved.error;
+      }
     }
   }
 
@@ -18,11 +20,10 @@
     const { headerHtml, navHtml } = Become.renderShell({ active: 'habits' });
     const habits = state.habits.filter((h) => h.active);
     root.innerHTML = `${headerHtml}
-      <main>
-        <p class="tagline">${Become.formatLongDate()}</p>
-        <section class="section">
+      <main class="stack">
+        <section class="panel">
           <h2>Today</h2>
-          <ul class="habit-list">
+          <ul class="habit-list" style="margin-top:0.55rem">
             ${habits
               .map((h) => {
                 const done = Become.isHabitDone(state, today, h.id);
@@ -30,19 +31,23 @@
                 return `<li>
                   <label>
                     <input type="checkbox" data-toggle="${h.id}" ${done ? 'checked' : ''} />
-                    <strong>${h.name}</strong>
-                    <span class="tagline"> · ${streak} day streak</span>
+                    <span class="habit-copy">
+                      <strong>${h.name}</strong>
+                      <span class="meta">${streak} day streak</span>
+                    </span>
                   </label>
-                  <button type="button" class="btn" data-rename="${h.id}">Rename</button>
-                  <button type="button" class="btn" data-remove="${h.id}">Remove</button>
+                  <div class="habit-actions">
+                    <button type="button" class="btn" data-rename="${h.id}">Rename</button>
+                    <button type="button" class="btn" data-remove="${h.id}">Remove</button>
+                  </div>
                 </li>`;
               })
               .join('')}
           </ul>
         </section>
-        <section class="section">
+        <section class="panel">
           <h2>Add habit</h2>
-          <form id="add-habit">
+          <form id="add-habit" class="stack" style="margin-top:0.65rem">
             <div class="field">
               <label for="habit-name">Name</label>
               <input id="habit-name" name="name" required placeholder="e.g. Morning outside" />
@@ -52,6 +57,9 @@
         </section>
       </main>
       ${navHtml}`;
+
+    const dateEl = root.querySelector('#shell-date');
+    if (dateEl) dateEl.textContent = Become.formatLongDate();
 
     root.querySelectorAll('[data-toggle]').forEach((el) => {
       el.addEventListener('change', () => {

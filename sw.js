@@ -1,6 +1,5 @@
-const CACHE = 'become-v1';
+const CACHE = 'become-v3';
 const ASSETS = [
-  './',
   './index.html',
   './habits.html',
   './lifestyle.html',
@@ -28,21 +27,43 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
-  );
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  // Network-first for CSS/HTML so Pages deploys show up without a hard cache trap
+  const url = new URL(req.url);
+  const networkFirst =
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('/') ||
+    url.pathname.endsWith('.js');
+
+  if (networkFirst) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
 });

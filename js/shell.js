@@ -13,7 +13,10 @@
           `<a href="${l.href}" class="${l.id === active ? 'is-active' : ''}">${l.label}</a>`
       )
       .join('')}</nav>`;
-    const headerHtml = `<header class="site-header"><p class="brand">Become</p></header>`;
+    const headerHtml = `<header class="site-header">
+      <p class="brand">Become</p>
+      <p class="page-date" id="shell-date"></p>
+    </header>`;
     return { headerHtml, navHtml };
   }
 

@@ -61,17 +61,19 @@
     let fastHtml = '';
     if (fast) {
       const prog = Become.fastProgress(new Date(), fast);
-      fastHtml = `<section class="section" id="fast-timer">
+      fastHtml = `<section class="panel panel-span" id="fast-timer">
         <h2>Fast in progress</h2>
-        <p><strong>${prog.elapsedHours}h</strong> elapsed · <strong>${prog.remainingHours}h</strong> remaining</p>
+        <p class="metric">${prog.elapsedHours}h <span class="meta">elapsed</span></p>
+        <p class="meta">${prog.remainingHours}h remaining</p>
       </section>`;
     }
 
     const summary = (state.weeklySummaries || []).slice(-1)[0];
     const summaryHtml = summary
-      ? `<section class="section">
+      ? `<section class="panel panel-span">
           <h2>Week of ${summary.weekEnd}</h2>
-          <p>Avg ${summary.avgCalories} kcal · Habits ${summary.habitPct}%${
+          <p class="metric">${summary.habitPct}%</p>
+          <p class="meta">Habits · Avg ${summary.avgCalories} kcal${
             summary.weightDelta != null ? ` · Weight ${summary.weightDelta} lb` : ''
           }</p>
           <p class="tagline">${summary.note}</p>
@@ -79,81 +81,99 @@
       : '';
 
     const adaptiveHtml = state.adaptiveSuggestion
-      ? `<section class="section">
+      ? `<section class="panel panel-span">
           <h2>Target suggestion</h2>
-          <p>${state.adaptiveSuggestion.message}</p>
-          <button type="button" class="btn btn-primary" data-act="accept-adaptive">Accept</button>
-          <button type="button" class="btn" data-act="dismiss-adaptive">Dismiss</button>
+          <p class="meta">${state.adaptiveSuggestion.message}</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" data-act="accept-adaptive">Accept</button>
+            <button type="button" class="btn" data-act="dismiss-adaptive">Dismiss</button>
+          </div>
         </section>`
       : '';
 
     const celebrateHtml = celebrate
-      ? `<section class="section" id="celebrate">
+      ? `<section class="panel panel-span" id="celebrate">
           <h2>Checkpoint</h2>
-          <p>${celebrate.label}</p>
-          <button type="button" class="btn" data-act="dismiss-celebrate" data-id="${celebrate.id}">Nice</button>
+          <p class="metric">${celebrate.label}</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" data-act="dismiss-celebrate" data-id="${celebrate.id}">Nice</button>
+          </div>
         </section>`
       : '';
 
     const { headerHtml, navHtml } = Become.renderShell({ active: 'home' });
     root.innerHTML = `${headerHtml}
-      <main>
-        <p class="tagline">${Become.formatLongDate()}</p>
-        ${celebrateHtml}
-        <section class="section">
-          <h2>Goal</h2>
-          <p>${lost != null && total != null ? `${lost} of ${total} lb` : 'Log weight to track progress'}</p>
-        </section>
-        <section class="section">
-          <h2>Calories</h2>
-          <p>${nutrition.calories} / ${target} kcal</p>
-          <div class="progress" aria-hidden="true"><div class="progress-fill" style="width:${calPct}%"></div></div>
+      <main class="stack">
+        <div class="dashboard-grid">
+          ${celebrateHtml}
+          <section class="panel">
+            <h2>Goal</h2>
+            <p class="metric">${
+              lost != null && total != null ? `${lost}` : '—'
+            }</p>
+            <p class="meta">${
+              lost != null && total != null
+                ? `of ${total} lb lost`
+                : 'Log weight to track'
+            }</p>
+          </section>
+          <section class="panel">
+            <h2>Weight</h2>
+            <p class="metric">${avg != null ? avg : '—'}</p>
+            <p class="meta">${avg != null ? 'lb rolling avg' : 'No average yet'}</p>
+          </section>
+          <section class="panel panel-span">
+            <h2>Calories</h2>
+            <p class="metric">${nutrition.calories} <span class="meta">/ ${target}</span></p>
+            <div class="progress" aria-hidden="true"><div class="progress-fill" style="width:${calPct}%"></div></div>
+            ${
+              state.settings.proteinTarget
+                ? `<p class="meta" style="margin-top:0.45rem">Protein ${nutrition.protein} / ${state.settings.proteinTarget} g</p>`
+                : ''
+            }
+          </section>
+          <section class="panel panel-span">
+            <h2>Habits</h2>
+            <ul class="habit-list">
+              ${activeHabits
+                .map((h) => {
+                  const done = Become.isHabitDone(state, today, h.id);
+                  return `<li>
+                    <label>
+                      <input type="checkbox" data-habit="${h.id}" ${done ? 'checked' : ''} />
+                      <span class="habit-copy">
+                        <strong>${h.name}</strong>
+                        <span class="meta">${Become.streakFor(state, h.id, today)} day streak</span>
+                      </span>
+                    </label>
+                  </li>`;
+                })
+                .join('')}
+            </ul>
+          </section>
           ${
-            state.settings.proteinTarget
-              ? `<p>Protein ${nutrition.protein} / ${state.settings.proteinTarget} g</p>`
+            state.settings.showMeasurementsOnHome && state.measurements.length
+              ? (() => {
+                  const latest = state.measurements[state.measurements.length - 1];
+                  return `<section class="panel panel-span"><h2>Measurements</h2>
+                    <p class="meta">Waist ${latest.waist ?? '—'} · Chest ${latest.chest ?? '—'} · Hips ${latest.hips ?? '—'}</p>
+                  </section>`;
+                })()
               : ''
           }
-        </section>
-        <section class="section">
-          <h2>Habits</h2>
-          <ul class="habit-list">
-            ${activeHabits
-              .map((h) => {
-                const done = Become.isHabitDone(state, today, h.id);
-                return `<li>
-                  <label>
-                    <input type="checkbox" data-habit="${h.id}" ${done ? 'checked' : ''} />
-                    ${h.name}
-                    <span class="tagline"> · ${Become.streakFor(state, h.id, today)} day streak</span>
-                  </label>
-                </li>`;
-              })
-              .join('')}
-          </ul>
-        </section>
-        <section class="section">
-          <h2>Weight</h2>
-          <p>${avg != null ? `Rolling avg ${avg} lb` : 'No average yet'}</p>
-        </section>
-        ${
-          state.settings.showMeasurementsOnHome && state.measurements.length
-            ? (() => {
-                const latest = state.measurements[state.measurements.length - 1];
-                return `<section class="section"><h2>Measurements</h2>
-                  <p>Waist ${latest.waist ?? '—'} · Chest ${latest.chest ?? '—'} · Hips ${latest.hips ?? '—'}</p>
-                </section>`;
-              })()
-            : ''
-        }
-        ${fastHtml}
-        ${adaptiveHtml}
-        ${summaryHtml}
-        <section class="section">
-          <h2>Today’s passage</h2>
-          <p>${Become.passageForDate(new Date())}</p>
-        </section>
+          ${fastHtml}
+          ${adaptiveHtml}
+          ${summaryHtml}
+          <section class="panel panel-span">
+            <h2>Today’s passage</h2>
+            <p class="passage">${Become.passageForDate(new Date())}</p>
+          </section>
+        </div>
       </main>
       ${navHtml}`;
+
+    const dateEl = root.querySelector('#shell-date');
+    if (dateEl) dateEl.textContent = Become.formatLongDate();
 
     root.querySelectorAll('[data-habit]').forEach((input) => {
       input.addEventListener('change', () => {
@@ -193,7 +213,9 @@
         const el = document.getElementById('fast-timer');
         if (!el) return;
         const prog = Become.fastProgress(new Date(), fast);
-        el.querySelector('p').innerHTML = `<strong>${prog.elapsedHours}h</strong> elapsed · <strong>${prog.remainingHours}h</strong> remaining`;
+        el.querySelector('.metric').innerHTML = `${prog.elapsedHours}h <span class="meta">elapsed</span>`;
+        const meta = el.querySelectorAll('.meta')[1];
+        if (meta) meta.textContent = `${prog.remainingHours}h remaining`;
       }, 30000);
     }
   }
