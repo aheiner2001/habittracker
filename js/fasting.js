@@ -23,6 +23,30 @@
     };
   }
 
+  function removeFast(state, fastId) {
+    return {
+      ...state,
+      fasts: (state.fasts || []).filter((f) => f.id !== fastId),
+    };
+  }
+
+  /** Format local datetime for datetime-local / parseLocal: YYYY-MM-DDTHH:mm */
+  function formatLocalDateTime(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function startFastNow(state, { hours = 24, now = new Date() } = {}) {
+    const h = Number(hours);
+    if (!(h > 0)) return state;
+    const end = new Date(now.getTime() + h * 3600000);
+    return addFast(state, {
+      start: formatLocalDateTime(now),
+      end: formatLocalDateTime(end),
+      recurrence: 'none',
+    });
+  }
+
   function parseLocal(iso) {
     // Accept "YYYY-MM-DDTHH:mm"
     const [datePart, timePart = '00:00'] = iso.split('T');
@@ -34,6 +58,7 @@
   function expandFasts(state, fromDateKey, toDateKey) {
     const from = Become.parseDateKey(fromDateKey);
     const to = Become.parseDateKey(toDateKey);
+    to.setHours(23, 59, 59, 999);
     const intervals = [];
     for (const fast of state.fasts || []) {
       let start = parseLocal(fast.start);
@@ -85,6 +110,8 @@
 
   Object.assign(Become, {
     addFast,
+    removeFast,
+    startFastNow,
     expandFasts,
     activeFast,
     fastProgress,
@@ -94,6 +121,8 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       addFast,
+      removeFast,
+      startFastNow,
       expandFasts,
       activeFast,
       fastProgress,

@@ -7,7 +7,8 @@ const { rollingAverage } = require('../js/weight.js');
 require('../js/dates.js'); // ensure Become.addDays for weight if needed
 const { defaultState } = require('../js/storage.js');
 const { addFood, logFood, dayNutrition, updateFoodLog } = require('../js/calories.js');
-const { applyRedistribution, addHighCalorieEvent } = require('../js/events.js');
+const { applyRedistribution, addHighCalorieEvent, clearEventOverrides } = require('../js/events.js');
+const { addFast, removeFast, isFastingDay } = require('../js/fasting.js');
 const BecomeDates = require('../js/dates.js');
 
 // Wire Become helpers for modules that expect global Become
@@ -181,4 +182,35 @@ test('redistribution spreads surplus across preDays', () => {
   assert.equal(state.targetOverrides['2026-08-20'], 2800);
   assert.equal(state.targetOverrides['2026-08-19'], 1600);
   assert.equal(state.targetOverrides['2026-08-15'], 1600);
+  state = clearEventOverrides(state, id);
+  assert.equal(state.targetOverrides['2026-08-20'], undefined);
+  assert.equal(state.targetOverrides['2026-08-15'], undefined);
+  assert.equal(state.highCalorieEvents.length, 0);
+});
+
+test('removeFast deletes a scheduled fast', () => {
+  global.Become = Object.assign(global.Become || {}, BecomeDates);
+  let state = defaultState();
+  state = addFast(state, {
+    start: '2026-08-15T00:00',
+    end: '2026-08-16T00:00',
+    recurrence: 'none',
+  });
+  assert.equal(isFastingDay(state, '2026-08-15'), true);
+  const id = state.fasts[0].id;
+  state = removeFast(state, id);
+  assert.equal(state.fasts.length, 0);
+  assert.equal(isFastingDay(state, '2026-08-15'), false);
+});
+
+test('startFastNow schedules a fast from a fixed clock', () => {
+  const { startFastNow, isFastingDay } = require('../js/fasting.js');
+  global.Become = Object.assign(global.Become || {}, BecomeDates);
+  let state = defaultState();
+  const now = new Date(2026, 7, 15, 8, 0, 0);
+  state = startFastNow(state, { hours: 24, now });
+  assert.equal(state.fasts.length, 1);
+  assert.equal(state.fasts[0].start, '2026-08-15T08:00');
+  assert.equal(state.fasts[0].end, '2026-08-16T08:00');
+  assert.equal(isFastingDay(state, '2026-08-15'), true);
 });

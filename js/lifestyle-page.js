@@ -464,7 +464,20 @@
       return `
         <section class="panel panel-span">
           <h2>Fasting</h2>
-          <form id="add-fast" class="stack" style="margin-top:0.55rem">
+          <form id="start-fast-now" class="stack" style="margin-top:0.55rem">
+            <p class="day-dash-label">Quick start</p>
+            <div class="form-grid">
+              <div class="field">
+                <label>Duration (hours)</label>
+                <input name="hours" type="number" min="1" step="1" value="24" required />
+              </div>
+              <div class="field" style="display:flex;align-items:end">
+                <button class="btn btn-primary" type="submit" style="width:100%">Start fasting now</button>
+              </div>
+            </div>
+          </form>
+          <form id="add-fast" class="stack" style="margin-top:0.85rem">
+            <p class="day-dash-label">Or schedule</p>
             <div class="form-grid">
               <div class="field"><label>Start</label><input name="start" type="datetime-local" required /></div>
               <div class="field"><label>End</label><input name="end" type="datetime-local" required /></div>
@@ -476,11 +489,19 @@
                 </select>
               </div>
             </div>
-            <button class="btn btn-primary" type="submit">Schedule fast</button>
+            <button class="btn" type="submit">Schedule fast</button>
           </form>
-          <ul class="simple-list">${state.fasts
-            .map((f) => `<li>${f.start} → ${f.end} (${f.recurrence})</li>`)
-            .join('')}</ul>
+          <ul class="simple-list">${
+            state.fasts.length
+              ? state.fasts
+                  .map(
+                    (f) =>
+                      `<li><span>${f.start} → ${f.end} (${f.recurrence})</span>
+                      <button type="button" class="btn" data-rm-fast="${f.id}">Remove</button></li>`
+                  )
+                  .join('')
+              : '<li class="meta">No fasts scheduled.</li>'
+          }</ul>
         </section>
         <section class="panel panel-span">
           <h2>High-calorie event</h2>
@@ -493,13 +514,18 @@
             </div>
             <button class="btn btn-primary" type="submit">Plan & redistribute</button>
           </form>
-          <ul class="simple-list">${state.highCalorieEvents
-            .map(
-              (e) =>
-                `<li>${e.startDate}–${e.endDate} @ ${e.eventTargetCalories}
-                <button type="button" class="btn" data-clear-event="${e.id}">Clear</button></li>`
-            )
-            .join('')}</ul>
+          <ul class="simple-list">${
+            state.highCalorieEvents.length
+              ? state.highCalorieEvents
+                  .map(
+                    (e) =>
+                      `<li><span>${e.startDate}–${e.endDate} @ ${e.eventTargetCalories} kcal</span>
+                      <button type="button" class="btn" data-clear-event="${e.id}">Clear</button></li>`
+                  )
+                  .join('')
+              : '<li class="meta">No high-calorie events.</li>'
+          }</ul>
+          <p class="meta">Clear removes the event and restores normal calorie targets for those days.</p>
         </section>`;
     }
 
@@ -1199,6 +1225,16 @@
       });
     }
 
+    const startFastNow = root.querySelector('#start-fast-now');
+    if (startFastNow) {
+      startFastNow.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const hours = Number(new FormData(startFastNow).get('hours'));
+        persist(Become.startFastNow(state, { hours }));
+        render();
+      });
+    }
+
     const addFast = root.querySelector('#add-fast');
     if (addFast) {
       addFast.addEventListener('submit', (e) => {
@@ -1214,6 +1250,13 @@
         render();
       });
     }
+
+    root.querySelectorAll('[data-rm-fast]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        persist(Become.removeFast(state, btn.getAttribute('data-rm-fast')));
+        render();
+      });
+    });
 
     const addEvent = root.querySelector('#add-event');
     if (addEvent) {

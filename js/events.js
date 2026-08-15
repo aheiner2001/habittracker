@@ -58,7 +58,11 @@
       delete targetOverrides[cursor];
       cursor = Become.addDays(cursor, 1);
     }
-    return { ...state, targetOverrides };
+    return {
+      ...state,
+      targetOverrides,
+      highCalorieEvents: state.highCalorieEvents.filter((e) => e.id !== eventId),
+    };
   }
 
   Object.assign(Become, {
