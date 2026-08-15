@@ -2,6 +2,19 @@
   let state = Become.loadState();
   let calendarCursor = Become.startOfMonth(new Date());
   let selectedDateKey = Become.todayKey();
+  let activeTool = sessionStorage.getItem('become-lifestyle-tool') || 'food';
+  let settingsOpen = false;
+  let logExpanded = false;
+
+  const TOOLS = [
+    { id: 'food', label: 'Food' },
+    { id: 'weight', label: 'Weight' },
+    { id: 'meals', label: 'Meals' },
+    { id: 'calendar', label: 'Calendar' },
+    { id: 'plan', label: 'Plan' },
+    { id: 'measure', label: 'Body' },
+  ];
+
   const root = document.getElementById('app');
   const errEl = document.getElementById('storage-error');
 
@@ -17,15 +30,353 @@
     }
   }
 
+  function setTool(id) {
+    activeTool = id;
+    sessionStorage.setItem('become-lifestyle-tool', id);
+    rememberTool(id);
+    settingsOpen = false;
+    render();
+  }
+
+  function rememberTool(id) {
+    try {
+      const key = 'become-lifestyle-recent';
+      const prev = JSON.parse(sessionStorage.getItem(key) || '[]');
+      const next = [id, ...prev.filter((t) => t !== id)].slice(0, 4);
+      sessionStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function recentToolIds() {
+    try {
+      const recent = JSON.parse(sessionStorage.getItem('become-lifestyle-recent') || '[]');
+      const pinned = ['food', 'weight'];
+      return [...pinned, ...recent.filter((id) => !pinned.includes(id))].slice(0, 5);
+    } catch {
+      return ['food', 'weight', 'meals'];
+    }
+  }
+
   function foodOptions() {
     return state.foods
       .map((f) => `<option value="${f.id}">${f.name}</option>`)
       .join('');
   }
 
+  function dayDashboardHtml(today, nutrition, target, fasting) {
+    const remaining = Math.round(target - nutrition.calories);
+    const calPct = Math.min(100, Math.round((nutrition.calories / Math.max(target, 1)) * 100));
+    const entries = state.foodLogs[today] || [];
+    return `
+      <section class="panel panel-span day-dash">
+        <div class="day-dash-top">
+          <div>
+            <p class="day-dash-label">Today</p>
+            <p class="metric">${Math.round(nutrition.calories)}</p>
+            <p class="meta">of ${target} kcal${fasting ? ' · Fasting' : ''}</p>
+          </div>
+          <div class="day-dash-side">
+            <p class="day-dash-remain ${remaining < 0 ? 'is-over' : ''}">
+              ${remaining >= 0 ? `${remaining} left` : `${Math.abs(remaining)} over`}
+            </p>
+            ${
+              state.settings.proteinTarget
+                ? `<p class="meta">Protein ${Math.round(nutrition.protein)} / ${state.settings.proteinTarget} g</p>`
+                : ''
+            }
+          </div>
+        </div>
+        <div class="progress" aria-hidden="true"><div class="progress-fill" style="width:${calPct}%"></div></div>
+        <button type="button" class="log-toggle" data-act="toggle-log">
+          ${entries.length} logged item${entries.length === 1 ? '' : 's'}
+          <span>${logExpanded ? 'Hide' : 'Show'}</span>
+        </button>
+        ${
+          logExpanded
+            ? `<ul class="log-list">
+                ${
+                  entries.length
+                    ? entries
+                        .map((e) => {
+                          const food = state.foods.find((f) => f.id === e.foodId);
+                          const cals = food ? Math.round(food.calPerG * e.grams) : '?';
+                          return `<li><span>${food?.name || 'Food'} · ${e.grams}g · ${cals} kcal</span>
+                            <button type="button" class="btn" data-rm-log="${e.id}">Remove</button></li>`;
+                        })
+                        .join('')
+                    : '<li class="meta">Nothing logged yet.</li>'
+                }
+              </ul>`
+            : ''
+        }
+      </section>`;
+  }
+
+  function toolBarHtml() {
+    const recent = recentToolIds();
+    const chips = recent
+      .map((id) => {
+        const tool = TOOLS.find((t) => t.id === id);
+        if (!tool) return '';
+        return `<button type="button" class="tool-chip ${
+          activeTool === id ? 'is-active' : ''
+        }" data-tool="${id}">${tool.label}</button>`;
+      })
+      .join('');
+    const more = TOOLS.filter((t) => !recent.includes(t.id));
+    return `
+      <nav class="tool-bar" aria-label="Lifestyle tools">
+        <div class="tool-chips">${chips}</div>
+        ${
+          more.length
+            ? `<details class="tool-more">
+                <summary>More</summary>
+                <div class="tool-more-menu">
+                  ${more
+                    .map(
+                      (t) =>
+                        `<button type="button" class="tool-chip" data-tool="${t.id}">${t.label}</button>`
+                    )
+                    .join('')}
+                </div>
+              </details>`
+            : ''
+        }
+      </nav>`;
+  }
+
+  function toolPanelHtml(today, fasting, windowDays) {
+    if (activeTool === 'food') {
+      return `
+        <section class="panel panel-span">
+          <h2>${fasting ? 'Fasting' : 'Log food'}</h2>
+          ${
+            fasting
+              ? `<p class="meta">Water and electrolytes only during a fast.</p>
+                 <div class="btn-row"><button type="button" class="btn btn-primary" data-act="log-water">Log water / electrolytes</button></div>`
+              : `<form id="log-food" class="stack" style="margin-top:0.65rem">
+                  <div class="form-grid">
+                    <div class="field field-span">
+                      <label for="log-food-id">Food</label>
+                      <select id="log-food-id" name="foodId" required>${foodOptions() || '<option value="">Add a food first</option>'}</select>
+                    </div>
+                    <div class="field">
+                      <label for="log-grams">Grams</label>
+                      <input id="log-grams" name="grams" type="number" step="1" inputmode="numeric" required />
+                    </div>
+                    <div class="field" style="display:flex;align-items:end">
+                      <button class="btn btn-primary" type="submit" style="width:100%">Log</button>
+                    </div>
+                  </div>
+                </form>
+                <div class="form-grid" style="margin-top:0.85rem">
+                  <div class="field">
+                    <label for="apply-tmpl">Template</label>
+                    <select id="apply-tmpl">
+                      <option value="">Choose…</option>
+                      ${state.mealTemplates
+                        .map((t) => `<option value="${t.id}">${t.name}</option>`)
+                        .join('')}
+                    </select>
+                  </div>
+                  <div class="field" style="display:flex;align-items:end">
+                    <button type="button" class="btn" data-act="apply-tmpl" style="width:100%">Apply</button>
+                  </div>
+                  <div class="field">
+                    <label for="log-meal">Saved meal</label>
+                    <select id="log-meal">
+                      <option value="">Choose…</option>
+                      ${state.meals
+                        .map((m) => `<option value="${m.id}">${m.name}</option>`)
+                        .join('')}
+                    </select>
+                  </div>
+                  <div class="field" style="display:flex;align-items:end">
+                    <button type="button" class="btn" data-act="log-meal" style="width:100%">Log meal</button>
+                  </div>
+                </div>`
+          }
+        </section>`;
+    }
+
+    if (activeTool === 'weight') {
+      const avg = Become.rollingAverage(state.weights, today, windowDays);
+      return `
+        <section class="panel panel-span">
+          <h2>Weight</h2>
+          <p class="metric">${avg != null ? avg : '—'}</p>
+          <p class="meta">${avg != null ? `${windowDays}-day rolling avg` : 'Log this morning’s weigh-in'}</p>
+          <form id="log-weight" class="form-grid" style="margin-top:0.75rem">
+            <div class="field">
+              <label>Today’s weight (lb)</label>
+              <input name="lbs" type="number" step="0.1" inputmode="decimal" required />
+            </div>
+            <div class="field" style="display:flex;align-items:end">
+              <button class="btn btn-primary" type="submit" style="width:100%">Log</button>
+            </div>
+          </form>
+          <div class="btn-row">
+            <button type="button" class="btn ${windowDays === 7 ? 'btn-primary' : ''}" data-window="7">7-day</button>
+            <button type="button" class="btn ${windowDays === 14 ? 'btn-primary' : ''}" data-window="14">14-day</button>
+          </div>
+          <div id="weight-chart"></div>
+        </section>`;
+    }
+
+    if (activeTool === 'meals') {
+      return `
+        <section class="panel panel-span">
+          <h2>Add food to library</h2>
+          <form id="add-food" class="stack" style="margin-top:0.65rem">
+            <div class="form-grid">
+              <div class="field field-span"><label>Name</label><input name="name" required /></div>
+              <div class="field"><label>Grams</label><input name="grams" type="number" required value="100" /></div>
+              <div class="field"><label>Calories</label><input name="calories" type="number" required /></div>
+              <div class="field"><label>Protein (g)</label><input name="protein" type="number" /></div>
+              <div class="field"><label>Carbs (g)</label><input name="carbs" type="number" /></div>
+              <div class="field"><label>Fat (g)</label><input name="fat" type="number" /></div>
+            </div>
+            <button class="btn btn-primary" type="submit">Save food</button>
+          </form>
+        </section>
+        <section class="panel panel-span">
+          <h2>Save from today’s log</h2>
+          <form id="save-meal" class="stack" style="margin-top:0.55rem">
+            <div class="field"><label>Meal name</label><input name="name" required placeholder="Berry smoothie" /></div>
+            <button class="btn" type="submit">Save as meal</button>
+          </form>
+          <form id="save-tmpl" class="stack" style="margin-top:0.85rem">
+            <div class="field"><label>Template name</label><input name="name" required placeholder="Light breakfast" /></div>
+            <button class="btn" type="submit">Save as template</button>
+          </form>
+        </section>`;
+    }
+
+    if (activeTool === 'calendar') {
+      return `<section class="panel panel-span"><h2>Calendar</h2><div id="cal-root"></div></section>`;
+    }
+
+    if (activeTool === 'plan') {
+      return `
+        <section class="panel panel-span">
+          <h2>Fasting</h2>
+          <form id="add-fast" class="stack" style="margin-top:0.55rem">
+            <div class="form-grid">
+              <div class="field"><label>Start</label><input name="start" type="datetime-local" required /></div>
+              <div class="field"><label>End</label><input name="end" type="datetime-local" required /></div>
+              <div class="field field-span">
+                <label>Recurrence</label>
+                <select name="recurrence">
+                  <option value="none">None</option>
+                  <option value="every_other_week">Every other week</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary" type="submit">Schedule fast</button>
+          </form>
+          <ul class="simple-list">${state.fasts
+            .map((f) => `<li>${f.start} → ${f.end} (${f.recurrence})</li>`)
+            .join('')}</ul>
+        </section>
+        <section class="panel panel-span">
+          <h2>High-calorie event</h2>
+          <form id="add-event" class="stack" style="margin-top:0.55rem">
+            <div class="form-grid">
+              <div class="field"><label>Start date</label><input name="startDate" type="date" required /></div>
+              <div class="field"><label>End date</label><input name="endDate" type="date" required /></div>
+              <div class="field"><label>Event target (kcal)</label><input name="eventTargetCalories" type="number" required value="2800" /></div>
+              <div class="field"><label>Days before</label><input name="preDays" type="number" value="5" min="1" /></div>
+            </div>
+            <button class="btn btn-primary" type="submit">Plan & redistribute</button>
+          </form>
+          <ul class="simple-list">${state.highCalorieEvents
+            .map(
+              (e) =>
+                `<li>${e.startDate}–${e.endDate} @ ${e.eventTargetCalories}
+                <button type="button" class="btn" data-clear-event="${e.id}">Clear</button></li>`
+            )
+            .join('')}</ul>
+        </section>`;
+    }
+
+    if (activeTool === 'measure') {
+      return `
+        <section class="panel panel-span">
+          <h2>Measurements</h2>
+          <form id="log-meas" class="stack" style="margin-top:0.55rem">
+            <div class="form-grid">
+              <div class="field"><label>Waist</label><input name="waist" type="number" step="0.1" /></div>
+              <div class="field"><label>Chest</label><input name="chest" type="number" step="0.1" /></div>
+              <div class="field"><label>Hips</label><input name="hips" type="number" step="0.1" /></div>
+            </div>
+            <button class="btn btn-primary" type="submit">Log measurements</button>
+          </form>
+          <label class="check-row"><input type="checkbox" id="show-meas" ${
+            state.settings.showMeasurementsOnHome ? 'checked' : ''
+          } /> Show on Home</label>
+        </section>`;
+    }
+
+    return '';
+  }
+
+  function settingsSheetHtml() {
+    if (!settingsOpen) return '';
+    return `
+      <div class="settings-sheet" role="dialog" aria-label="Settings">
+        <div class="settings-sheet-inner">
+          <div class="settings-sheet-head">
+            <h2>Settings</h2>
+            <button type="button" class="icon-btn" data-act="close-settings" aria-label="Close">✕</button>
+          </div>
+          <section class="panel">
+            <h2>Targets</h2>
+            <form id="settings" class="stack" style="margin-top:0.55rem">
+              <div class="form-grid">
+                <div class="field"><label>Calorie target</label><input name="calorieTarget" type="number" value="${
+                  state.settings.calorieTarget
+                }" required /></div>
+                <div class="field"><label>Protein (optional)</label><input name="proteinTarget" type="number" value="${
+                  state.settings.proteinTarget ?? ''
+                }" /></div>
+              </div>
+              <button class="btn btn-primary" type="submit">Save</button>
+            </form>
+          </section>
+          <section class="panel">
+            <h2>Milestones</h2>
+            <ul class="simple-list">${(state.goal.milestones || [])
+              .map(
+                (m) =>
+                  `<li><span>${m.label} (${m.lbsFromStart} lb)${
+                    m.reachedAt ? ` · ${m.reachedAt}` : ''
+                  }</span>
+                  <button type="button" class="btn" data-edit-ms="${m.id}">Edit</button></li>`
+              )
+              .join('')}</ul>
+          </section>
+          <section class="panel">
+            <h2>Backup</h2>
+            <div class="btn-row">
+              <button type="button" class="btn" data-act="export">Export JSON</button>
+            </div>
+            <div class="field" style="margin-top:0.75rem">
+              <label for="import-file">Import JSON</label>
+              <input id="import-file" type="file" accept="application/json,.json" />
+            </div>
+          </section>
+        </div>
+      </div>`;
+  }
+
   function render() {
     const today = Become.todayKey();
-    const { headerHtml, navHtml } = Become.renderShell({ active: 'lifestyle' });
+    const { headerHtml, navHtml } = Become.renderShell({
+      active: 'lifestyle',
+      showSettings: true,
+    });
     const nutrition = Become.dayNutrition(state, today);
     const target = Become.effectiveTarget(state, today);
     const fasting = Become.isFastingDay(state, today);
@@ -34,221 +385,79 @@
 
     root.innerHTML = `${headerHtml}
       <main class="lifestyle-grid">
-        <section class="panel panel-span">
-          <h2>Today’s log</h2>
-          <p>${nutrition.calories} / ${target} kcal${fasting ? ' · Fasting day' : ''}</p>
-          <ul id="log-list">
-            ${(state.foodLogs[today] || [])
-              .map((e) => {
-                const food = state.foods.find((f) => f.id === e.foodId);
-                const cals = food
-                  ? Math.round(food.calPerG * e.grams)
-                  : '?';
-                return `<li>${food?.name || 'Food'} · ${e.grams}g · ${cals} kcal
-                  <button type="button" class="btn" data-rm-log="${e.id}">Remove</button></li>`;
-              })
-              .join('')}
-          </ul>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>${fasting ? 'Fasting note' : 'Log food'}</h2>
-          ${
-            fasting
-              ? `<p class="tagline">Water and electrolytes only during a fast. Normal food logging is paused.</p>
-                 <button type="button" class="btn" data-act="log-water">Log water / electrolytes</button>`
-              : `<form id="log-food">
-                  <div class="field">
-                    <label for="log-food-id">Food</label>
-                    <select id="log-food-id" name="foodId" required>${foodOptions()}</select>
-                  </div>
-                  <div class="field">
-                    <label for="log-grams">Grams</label>
-                    <input id="log-grams" name="grams" type="number" step="1" required />
-                  </div>
-                  <button class="btn btn-primary" type="submit">Log</button>
-                </form>
-                <div class="field" style="margin-top:1rem">
-                  <label for="apply-tmpl">Apply template</label>
-                  <select id="apply-tmpl">
-                    <option value="">Choose…</option>
-                    ${state.mealTemplates
-                      .map((t) => `<option value="${t.id}">${t.name}</option>`)
-                      .join('')}
-                  </select>
-                  <button type="button" class="btn" data-act="apply-tmpl">Apply</button>
-                </div>
-                <div class="field">
-                  <label for="log-meal">Log saved meal</label>
-                  <select id="log-meal">
-                    <option value="">Choose…</option>
-                    ${state.meals
-                      .map((m) => `<option value="${m.id}">${m.name}</option>`)
-                      .join('')}
-                  </select>
-                  <button type="button" class="btn" data-act="log-meal">Log meal</button>
-                </div>`
-          }
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Add food</h2>
-          <form id="add-food">
-            <div class="field"><label>Name</label><input name="name" required /></div>
-            <div class="field"><label>Grams</label><input name="grams" type="number" required value="100" /></div>
-            <div class="field"><label>Calories</label><input name="calories" type="number" required /></div>
-            <div class="field"><label>Protein (g, optional)</label><input name="protein" type="number" /></div>
-            <div class="field"><label>Carbs (g, optional)</label><input name="carbs" type="number" /></div>
-            <div class="field"><label>Fat (g, optional)</label><input name="fat" type="number" /></div>
-            <button class="btn btn-primary" type="submit">Save food</button>
-          </form>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Save meal from today’s log</h2>
-          <form id="save-meal">
-            <div class="field"><label>Meal name</label><input name="name" required placeholder="Berry smoothie" /></div>
-            <button class="btn" type="submit">Save as meal</button>
-          </form>
-          <form id="save-tmpl" style="margin-top:1rem">
-            <div class="field"><label>Template name</label><input name="name" required placeholder="Light breakfast" /></div>
-            <button class="btn" type="submit">Save today’s items as template</button>
-          </form>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Weight</h2>
-          <form id="log-weight">
-            <div class="field"><label>Today’s weight (lb)</label><input name="lbs" type="number" step="0.1" required /></div>
-            <button class="btn btn-primary" type="submit">Log weight</button>
-          </form>
-          <div class="field">
-            <label>Average window</label>
-            <button type="button" class="btn ${windowDays === 7 ? 'btn-primary' : ''}" data-window="7">7-day</button>
-            <button type="button" class="btn ${windowDays === 14 ? 'btn-primary' : ''}" data-window="14">14-day</button>
-          </div>
-          <div id="weight-chart"></div>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Measurements</h2>
-          <form id="log-meas">
-            <div class="field"><label>Waist</label><input name="waist" type="number" step="0.1" /></div>
-            <div class="field"><label>Chest</label><input name="chest" type="number" step="0.1" /></div>
-            <div class="field"><label>Hips</label><input name="hips" type="number" step="0.1" /></div>
-            <button class="btn" type="submit">Log measurements</button>
-          </form>
-          <label><input type="checkbox" id="show-meas" ${
-            state.settings.showMeasurementsOnHome ? 'checked' : ''
-          } /> Show on Home</label>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Calendar</h2>
-          <div id="cal-root"></div>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Fasting</h2>
-          <form id="add-fast">
-            <div class="field"><label>Start (local)</label><input name="start" type="datetime-local" required /></div>
-            <div class="field"><label>End (local)</label><input name="end" type="datetime-local" required /></div>
-            <div class="field">
-              <label>Recurrence</label>
-              <select name="recurrence">
-                <option value="none">None</option>
-                <option value="every_other_week">Every other week</option>
-              </select>
-            </div>
-            <button class="btn btn-primary" type="submit">Schedule fast</button>
-          </form>
-          <ul>${state.fasts
-            .map(
-              (f) =>
-                `<li>${f.start} → ${f.end} (${f.recurrence})</li>`
-            )
-            .join('')}</ul>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>High-calorie event</h2>
-          <form id="add-event">
-            <div class="field"><label>Start date</label><input name="startDate" type="date" required /></div>
-            <div class="field"><label>End date</label><input name="endDate" type="date" required /></div>
-            <div class="field"><label>Event day target (kcal)</label><input name="eventTargetCalories" type="number" required value="2800" /></div>
-            <div class="field"><label>Days before to redistribute</label><input name="preDays" type="number" value="5" min="1" /></div>
-            <button class="btn btn-primary" type="submit">Plan & redistribute</button>
-          </form>
-          <ul>${state.highCalorieEvents
-            .map(
-              (e) =>
-                `<li>${e.startDate}–${e.endDate} @ ${e.eventTargetCalories} kcal
-                <button type="button" class="btn" data-clear-event="${e.id}">Clear overrides</button></li>`
-            )
-            .join('')}</ul>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Milestones</h2>
-          <ul>${(state.goal.milestones || [])
-            .map(
-              (m) =>
-                `<li>${m.label} (${m.lbsFromStart} lb)${
-                  m.reachedAt ? ` · reached ${m.reachedAt}` : ''
-                }
-                <button type="button" class="btn" data-edit-ms="${m.id}">Edit size</button></li>`
-            )
-            .join('')}</ul>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Settings</h2>
-          <form id="settings">
-            <div class="field"><label>Calorie target</label><input name="calorieTarget" type="number" value="${
-              state.settings.calorieTarget
-            }" required /></div>
-            <div class="field"><label>Protein target (optional)</label><input name="proteinTarget" type="number" value="${
-              state.settings.proteinTarget ?? ''
-            }" /></div>
-            <button class="btn btn-primary" type="submit">Save settings</button>
-          </form>
-        </section>
-
-        <section class="panel panel-span">
-          <h2>Backup</h2>
-          <button type="button" class="btn" data-act="export">Export JSON</button>
-          <div class="field">
-            <label for="import-file">Import JSON</label>
-            <input id="import-file" type="file" accept="application/json,.json" />
-          </div>
-        </section>
+        ${dayDashboardHtml(today, nutrition, target, fasting)}
+        ${toolBarHtml()}
+        ${toolPanelHtml(today, fasting, windowDays)}
       </main>
+      ${settingsSheetHtml()}
       ${navHtml}`;
 
     const dateEl = root.querySelector('#shell-date');
     if (dateEl) dateEl.textContent = Become.formatLongDate();
 
-    Become.renderWeightChart(root.querySelector('#weight-chart'), series, {
-      windowDays,
-    });
-    Become.renderLifestyleCalendar(root.querySelector('#cal-root'), state, {
-      cursor: calendarCursor,
-      selectedDateKey,
-      onSelect: (key) => {
-        selectedDateKey = key;
-        render();
-      },
-      onMonthChange: (d) => {
-        calendarCursor = d;
-        render();
-      },
-    });
+    if (activeTool === 'weight') {
+      const chart = root.querySelector('#weight-chart');
+      if (chart) Become.renderWeightChart(chart, series, { windowDays });
+    }
+    if (activeTool === 'calendar') {
+      const cal = root.querySelector('#cal-root');
+      if (cal) {
+        Become.renderLifestyleCalendar(cal, state, {
+          cursor: calendarCursor,
+          selectedDateKey,
+          onSelect: (key) => {
+            selectedDateKey = key;
+            render();
+          },
+          onMonthChange: (d) => {
+            calendarCursor = d;
+            render();
+          },
+        });
+      }
+    }
 
     bind();
   }
 
   function bind() {
     const today = Become.todayKey();
+
+    root.querySelectorAll('[data-tool]').forEach((btn) => {
+      btn.addEventListener('click', () => setTool(btn.getAttribute('data-tool')));
+    });
+
+    const openSettings = root.querySelector('[data-act="open-settings"]');
+    if (openSettings) {
+      openSettings.addEventListener('click', () => {
+        settingsOpen = true;
+        render();
+      });
+    }
+    const closeSettings = root.querySelector('[data-act="close-settings"]');
+    if (closeSettings) {
+      closeSettings.addEventListener('click', () => {
+        settingsOpen = false;
+        render();
+      });
+    }
+    const sheet = root.querySelector('.settings-sheet');
+    if (sheet) {
+      sheet.addEventListener('click', (e) => {
+        if (e.target === sheet) {
+          settingsOpen = false;
+          render();
+        }
+      });
+    }
+
+    const toggleLog = root.querySelector('[data-act="toggle-log"]');
+    if (toggleLog) {
+      toggleLog.addEventListener('click', () => {
+        logExpanded = !logExpanded;
+        render();
+      });
+    }
 
     root.querySelectorAll('[data-rm-log]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -272,7 +481,7 @@
             fat: fd.get('fat'),
           })
         );
-        render();
+        setTool('food');
       });
     }
 
@@ -282,7 +491,7 @@
       const grams = logFood.querySelector('[name="grams"]');
       const syncGrams = () => {
         const food = state.foods.find((f) => f.id === select.value);
-        if (food) grams.value = food.lastGrams || food.defaultGrams;
+        if (food && grams) grams.value = food.lastGrams || food.defaultGrams;
       };
       if (select) {
         select.addEventListener('change', syncGrams);
@@ -291,6 +500,7 @@
       logFood.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        if (!fd.get('foodId')) return;
         persist(
           Become.logFood(state, today, {
             foodId: fd.get('foodId'),
@@ -347,9 +557,9 @@
       saveMeal.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = new FormData(e.target).get('name');
-        const items = (state.foodLogs[today] || []).map((e) => ({
-          foodId: e.foodId,
-          grams: e.grams,
+        const items = (state.foodLogs[today] || []).map((entry) => ({
+          foodId: entry.foodId,
+          grams: entry.grams,
         }));
         persist(Become.saveMeal(state, { name, items }));
         render();
@@ -361,9 +571,9 @@
       saveTmpl.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = new FormData(e.target).get('name');
-        const items = (state.foodLogs[today] || []).map((e) => ({
-          foodId: e.foodId,
-          grams: e.grams,
+        const items = (state.foodLogs[today] || []).map((entry) => ({
+          foodId: entry.foodId,
+          grams: entry.grams,
         }));
         persist(Become.saveMealTemplate(state, { name, items }));
         render();
@@ -530,6 +740,7 @@
           const text = await file.text();
           const next = Become.importState(text);
           persist(next);
+          settingsOpen = false;
           render();
         } catch (err) {
           alert(err.message || 'Import failed');

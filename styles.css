@@ -92,6 +92,32 @@ p {
   align-self: center;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+  outline: none;
+}
+
 .tagline {
   margin: 0.35rem 0 0;
   color: var(--muted);
@@ -352,6 +378,7 @@ p {
 .lifestyle-grid {
   display: grid;
   gap: 0.85rem;
+  grid-template-columns: 1fr;
 }
 
 .log-list {
@@ -446,6 +473,210 @@ p {
   font-size: 1.05rem;
   line-height: 1.4;
   margin: 0.25rem 0 0;
+}
+
+/* Lifestyle day dashboard + tools */
+.day-dash-top {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.day-dash-label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day-dash-side {
+  text-align: right;
+}
+
+.day-dash-remain {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.day-dash-remain.is-over {
+  color: var(--danger);
+}
+
+.log-toggle {
+  width: 100%;
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.45rem 0 0;
+  min-height: 40px;
+}
+
+.tool-bar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.tool-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.15rem;
+  scrollbar-width: none;
+}
+
+.tool-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.tool-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 40px;
+  color: var(--muted);
+}
+
+.tool-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tool-more {
+  position: relative;
+}
+
+.tool-more summary {
+  list-style: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tool-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 25;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 9rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(22, 26, 23, 0.08);
+}
+
+.tool-more-menu .tool-chip {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.simple-list {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.simple-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.settings-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(22, 26, 23, 0.35);
+  display: grid;
+  align-items: end;
+  padding: 0;
+}
+
+.settings-sheet-inner {
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  max-height: min(88dvh, 720px);
+  overflow: auto;
+  padding: 1rem 1rem calc(1.25rem + var(--safe-bottom));
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-sheet-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+@media (min-width: 640px) {
+  .settings-sheet {
+    align-items: center;
+    justify-items: center;
+    padding: 1.5rem;
+  }
+
+  .settings-sheet-inner {
+    width: min(480px, 100%);
+    border-radius: 18px;
+    max-height: min(80dvh, 720px);
+  }
 }
 
 @media (max-width: 420px) {
