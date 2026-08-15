@@ -545,6 +545,13 @@ p {
   }
 }
 
+.passage {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.4;
+  margin: 0.25rem 0 0;
+}
+
 /* Lifestyle day dashboard + tools */
 .day-dash-top {
   display: grid;
