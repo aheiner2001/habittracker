@@ -3,11 +3,17 @@
 
   function dayFlags(state, dateKey) {
     const hasLog = (state.foodLogs[dateKey] || []).length > 0;
+    const hasWeight = (state.weights || []).some((w) => w.date === dateKey);
     const isFast = Become.isFastingDay(state, dateKey);
     const isEvent = (state.highCalorieEvents || []).some(
       (e) => dateKey >= e.startDate && dateKey <= e.endDate
     );
-    return { hasLog, isFast, isEvent };
+    return { hasLog, hasWeight, isFast, isEvent };
+  }
+
+  function weightForDate(state, dateKey) {
+    const entry = (state.weights || []).find((w) => w.date === dateKey);
+    return entry ? Number(entry.lbs) : null;
   }
 
   function renderLifestyleCalendar(
@@ -29,6 +35,7 @@
       const classes = ['day-cell'];
       if (dateKey === selectedDateKey) classes.push('is-selected');
       if (flags.hasLog) classes.push('has-log');
+      if (flags.hasWeight) classes.push('has-weight');
       if (flags.isFast) classes.push('is-fast');
       if (flags.isEvent) classes.push('is-event');
       cells.push(
@@ -36,7 +43,16 @@
       );
     }
     const nutrition = Become.dayNutrition(state, selectedDateKey);
+    const target = Become.effectiveTarget(state, selectedDateKey);
+    const weight = weightForDate(state, selectedDateKey);
     const flags = dayFlags(state, selectedDateKey);
+    const label = Become.formatLongDate
+      ? Become.formatLongDate(Become.parseDateKey(selectedDateKey))
+      : selectedDateKey;
+    const flagBits = [];
+    if (flags.isFast) flagBits.push('Fasting');
+    if (flags.isEvent) flagBits.push('High-calorie event');
+
     container.innerHTML = `
       <div class="calendar-toolbar">
         <div class="month-nav">
@@ -53,10 +69,40 @@
         </div>
         <div class="calendar-grid">${cells.join('')}</div>
       </div>
-      <div class="day-detail section">
-        <h2>${selectedDateKey}</h2>
-        <p>${nutrition.calories} kcal logged</p>
-        <p>${flags.isFast ? 'Fasting day' : ''}${flags.isEvent ? ' · High-calorie event' : ''}</p>
+      <div class="day-detail">
+        <h3 class="day-detail-title">${label}</h3>
+        <div class="day-detail-grid">
+          <div>
+            <p class="day-dash-label">Calories</p>
+            <p class="metric">${
+              flags.hasLog || nutrition.calories
+                ? Math.round(nutrition.calories)
+                : '—'
+            }</p>
+            <p class="meta">${
+              flags.hasLog || nutrition.calories
+                ? `of ${target} kcal target`
+                : 'No food logged'
+            }</p>
+          </div>
+          <div>
+            <p class="day-dash-label">Weigh-in</p>
+            <p class="metric">${weight != null ? weight : '—'}</p>
+            <p class="meta">${weight != null ? 'lb that morning' : 'No weigh-in'}</p>
+          </div>
+        </div>
+        ${
+          state.settings.proteinTarget && (flags.hasLog || nutrition.protein)
+            ? `<p class="meta" style="margin-top:0.55rem">Protein ${Math.round(
+                nutrition.protein
+              )} / ${state.settings.proteinTarget} g</p>`
+            : ''
+        }
+        ${
+          flagBits.length
+            ? `<p class="meta" style="margin-top:0.35rem">${flagBits.join(' · ')}</p>`
+            : ''
+        }
       </div>`;
 
     container.querySelector('[data-cal="prev"]').addEventListener('click', () => {
@@ -70,9 +116,9 @@
     });
   }
 
-  Object.assign(Become, { renderLifestyleCalendar, dayFlags });
+  Object.assign(Become, { renderLifestyleCalendar, dayFlags, weightForDate });
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { renderLifestyleCalendar, dayFlags };
+    module.exports = { renderLifestyleCalendar, dayFlags, weightForDate };
   }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
