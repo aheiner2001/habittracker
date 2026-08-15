@@ -214,3 +214,15 @@ test('startFastNow schedules a fast from a fixed clock', () => {
   assert.equal(state.fasts[0].end, '2026-08-16T08:00');
   assert.equal(isFastingDay(state, '2026-08-15'), true);
 });
+
+test('endFastsOnDate removes fasts covering that day', () => {
+  const { startFastNow, endFastsOnDate, isFastingDay } = require('../js/fasting.js');
+  global.Become = Object.assign(global.Become || {}, BecomeDates);
+  let state = defaultState();
+  const now = new Date(2026, 7, 15, 8, 0, 0);
+  state = startFastNow(state, { hours: 48, now });
+  assert.equal(isFastingDay(state, '2026-08-15'), true);
+  state = endFastsOnDate(state, '2026-08-15');
+  assert.equal(state.fasts.length, 0);
+  assert.equal(isFastingDay(state, '2026-08-15'), false);
+});

@@ -108,10 +108,21 @@
     return intervals.some((iv) => iv.start <= dayEnd && iv.end >= dayStart);
   }
 
+  function endFastsOnDate(state, dateKey) {
+    const intervals = expandFasts(state, dateKey, dateKey);
+    if (!intervals.length) return state;
+    const ids = new Set(intervals.map((iv) => iv.id));
+    return {
+      ...state,
+      fasts: (state.fasts || []).filter((f) => !ids.has(f.id)),
+    };
+  }
+
   Object.assign(Become, {
     addFast,
     removeFast,
     startFastNow,
+    endFastsOnDate,
     expandFasts,
     activeFast,
     fastProgress,
@@ -123,6 +134,7 @@
       addFast,
       removeFast,
       startFastNow,
+      endFastsOnDate,
       expandFasts,
       activeFast,
       fastProgress,

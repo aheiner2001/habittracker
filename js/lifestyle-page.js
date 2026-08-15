@@ -197,12 +197,19 @@
 
       return `
         <section class="panel panel-span">
-          <h2>${fasting ? 'Fasting' : 'Log food'}</h2>
+          <h2>Log food</h2>
           ${
             fasting
-              ? `<p class="meta">Water and electrolytes only during a fast.</p>
-                 <div class="btn-row"><button type="button" class="btn btn-primary" data-act="log-water">Log water / electrolytes</button></div>`
-              : `<form id="log-food" class="stack" style="margin-top:0.65rem">
+              ? `<div class="fast-banner" style="margin-top:0.55rem">
+                  <p class="meta">Fasting today — water and electrolytes are recommended. You can still log food if you break the fast.</p>
+                  <div class="btn-row" style="margin-top:0.55rem">
+                    <button type="button" class="btn btn-primary" data-act="log-water">Log water / electrolytes</button>
+                    <button type="button" class="btn" data-act="end-fast">End fast</button>
+                  </div>
+                </div>`
+              : ''
+          }
+          <form id="log-food" class="stack" style="margin-top:0.65rem">
                   <div class="form-grid">
                     <div class="field field-span">
                       <label for="log-food-id">Food</label>
@@ -243,8 +250,7 @@
                   <div class="field" style="display:flex;align-items:end">
                     <button type="button" class="btn" data-act="log-meal" style="width:100%">Log meal</button>
                   </div>
-                </div>`
-          }
+                </div>
         </section>`;
     }
 
@@ -1105,6 +1111,14 @@
         persist(
           Become.logFood(next, today, { foodId: waterFood.id, grams: 1, note: 'fast' })
         );
+        render();
+      });
+    }
+
+    const endFast = root.querySelector('[data-act="end-fast"]');
+    if (endFast) {
+      endFast.addEventListener('click', () => {
+        persist(Become.endFastsOnDate(state, today));
         render();
       });
     }
