@@ -1,4 +1,4 @@
-const CACHE = 'become-v6';
+const CACHE = 'become-v7';
 const ASSETS = [
   './index.html',
   './habits.html',

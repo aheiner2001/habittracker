@@ -42,6 +42,7 @@
       },
       habits: [],
       habitCompletions: {},
+      habitTimers: {},
       foods: [],
       meals: [],
       mealTemplates: [],

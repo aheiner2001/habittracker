@@ -19,7 +19,13 @@
     const habits = (habitNames || [])
       .map((name) => String(name).trim())
       .filter(Boolean)
-      .map((name) => ({ id: newId('habit'), name, active: true }));
+      .map((name) => ({
+        id: newId('habit'),
+        name,
+        active: true,
+        timed: false,
+        defaultMinutes: null,
+      }));
     const today = Become.todayKey();
     const next = {
       ...state,

@@ -5,6 +5,7 @@
   let activeTool = sessionStorage.getItem('become-lifestyle-tool') || 'food';
   let settingsOpen = false;
   let logExpanded = false;
+  let editingEntryId = null;
 
   const TOOLS = [
     { id: 'food', label: 'Food' },
@@ -102,8 +103,14 @@
                         .map((e) => {
                           const food = state.foods.find((f) => f.id === e.foodId);
                           const cals = food ? Math.round(food.calPerG * e.grams) : '?';
-                          return `<li><span>${food?.name || 'Food'} · ${e.grams}g · ${cals} kcal</span>
-                            <button type="button" class="btn" data-rm-log="${e.id}">Remove</button></li>`;
+                          const note = e.note ? ` · ${e.note}` : '';
+                          return `<li class="log-row">
+                            <button type="button" class="log-row-main" data-edit-log="${e.id}">
+                              <span class="food-quick-name">${food?.name || 'Food'}</span>
+                              <span class="food-quick-meta">${e.grams}g · ${cals} kcal${note}</span>
+                            </button>
+                            <button type="button" class="btn" data-rm-log="${e.id}">Remove</button>
+                          </li>`;
                         })
                         .join('')
                     : '<li class="meta">Nothing logged yet.</li>'
@@ -391,6 +398,51 @@
       </div>`;
   }
 
+  function editLogSheetHtml(today) {
+    if (!editingEntryId) return '';
+    const entry = (state.foodLogs[today] || []).find((e) => e.id === editingEntryId);
+    if (!entry) return '';
+    const food = state.foods.find((f) => f.id === entry.foodId);
+    const grams = entry.grams;
+    const cals = food ? Math.round(food.calPerG * grams) : 0;
+    const protein =
+      food && food.proteinPerG != null
+        ? Math.round(food.proteinPerG * grams * 10) / 10
+        : null;
+    return `
+      <div class="settings-sheet" role="dialog" aria-label="Edit food log" data-sheet="edit-log">
+        <div class="settings-sheet-inner">
+          <div class="settings-sheet-head">
+            <h2>Edit log</h2>
+            <button type="button" class="icon-btn" data-act="close-edit-log" aria-label="Close">✕</button>
+          </div>
+          <form id="edit-log-form" class="stack">
+            <div class="field">
+              <label for="edit-food-id">Food</label>
+              <select id="edit-food-id" name="foodId" required>${foodOptions()}</select>
+            </div>
+            <div class="field">
+              <label for="edit-grams">Grams</label>
+              <input id="edit-grams" name="grams" type="number" step="1" inputmode="numeric" required value="${grams}" />
+            </div>
+            <div class="field">
+              <label for="edit-note">Note (optional)</label>
+              <input id="edit-note" name="note" type="text" value="${entry.note || ''}" />
+            </div>
+            <p class="meta" id="edit-preview">~${cals} kcal${
+              protein != null ? ` · ${protein}g protein` : ''
+            }</p>
+            <p class="meta" id="edit-hint" hidden>Enter a positive gram amount.</p>
+            <div class="btn-row">
+              <button class="btn btn-primary" type="submit">Save</button>
+              <button class="btn" type="button" data-act="close-edit-log">Cancel</button>
+              <button class="btn btn-danger" type="button" data-act="delete-edit-log">Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+  }
+
   function render() {
     const today = Become.todayKey();
     const { headerHtml, navHtml } = Become.renderShell({
@@ -410,6 +462,7 @@
         ${toolPanelHtml(today, fasting, windowDays)}
       </main>
       ${settingsSheetHtml()}
+      ${editLogSheetHtml(today)}
       ${navHtml}`;
 
     const dateEl = root.querySelector('#shell-date');
@@ -450,6 +503,7 @@
     const openSettings = root.querySelector('[data-act="open-settings"]');
     if (openSettings) {
       openSettings.addEventListener('click', () => {
+        editingEntryId = null;
         settingsOpen = true;
         render();
       });
@@ -461,13 +515,92 @@
         render();
       });
     }
-    const sheet = root.querySelector('.settings-sheet');
-    if (sheet) {
+    root.querySelectorAll('.settings-sheet').forEach((sheet) => {
       sheet.addEventListener('click', (e) => {
-        if (e.target === sheet) {
-          settingsOpen = false;
-          render();
+        if (e.target !== sheet) return;
+        if (sheet.getAttribute('data-sheet') === 'edit-log') editingEntryId = null;
+        else settingsOpen = false;
+        render();
+      });
+    });
+
+    root.querySelectorAll('[data-edit-log]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        settingsOpen = false;
+        editingEntryId = btn.getAttribute('data-edit-log');
+        logExpanded = true;
+        render();
+        const select = root.querySelector('#edit-food-id');
+        const entry = (state.foodLogs[today] || []).find((e) => e.id === editingEntryId);
+        if (select && entry) select.value = entry.foodId;
+      });
+    });
+
+    const closeEdit = root.querySelectorAll('[data-act="close-edit-log"]');
+    closeEdit.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingEntryId = null;
+        render();
+      });
+    });
+
+    const deleteEdit = root.querySelector('[data-act="delete-edit-log"]');
+    if (deleteEdit) {
+      deleteEdit.addEventListener('click', () => {
+        if (!editingEntryId) return;
+        if (!confirm('Delete this log entry?')) return;
+        persist(Become.removeFoodLog(state, today, editingEntryId));
+        editingEntryId = null;
+        render();
+      });
+    }
+
+    const editForm = root.querySelector('#edit-log-form');
+    if (editForm) {
+      const foodSelect = editForm.querySelector('[name="foodId"]');
+      const gramsInput = editForm.querySelector('[name="grams"]');
+      const preview = root.querySelector('#edit-preview');
+      const hint = root.querySelector('#edit-hint');
+      const updatePreview = () => {
+        const food = state.foods.find((f) => f.id === foodSelect.value);
+        const g = Number(gramsInput.value);
+        if (!food || !(g > 0)) {
+          preview.textContent = '—';
+          return;
         }
+        const cals = Math.round(food.calPerG * g);
+        const protein =
+          food.proteinPerG != null
+            ? Math.round(food.proteinPerG * g * 10) / 10
+            : null;
+        preview.textContent = `~${cals} kcal${
+          protein != null ? ` · ${protein}g protein` : ''
+        }`;
+      };
+      foodSelect.addEventListener('change', () => {
+        const food = state.foods.find((f) => f.id === foodSelect.value);
+        if (food) gramsInput.value = food.lastGrams || food.defaultGrams;
+        updatePreview();
+      });
+      gramsInput.addEventListener('input', updatePreview);
+      editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(editForm);
+        const g = Number(fd.get('grams'));
+        if (!(g > 0)) {
+          if (hint) hint.hidden = false;
+          return;
+        }
+        if (hint) hint.hidden = true;
+        persist(
+          Become.updateFoodLog(state, today, editingEntryId, {
+            foodId: fd.get('foodId'),
+            grams: g,
+            note: fd.get('note'),
+          })
+        );
+        editingEntryId = null;
+        render();
       });
     }
 

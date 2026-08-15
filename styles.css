@@ -545,6 +545,80 @@ p {
   }
 }
 
+.btn-danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.log-row-main {
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.65rem 0.75rem;
+  min-height: 48px;
+}
+
+.log-row .btn {
+  margin-right: 0.45rem;
+  min-height: 36px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.habit-item {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.habit-item-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.habit-list > .habit-item {
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.habit-list > li:not(.habit-item) {
+  /* legacy rows */
+}
+
+.habit-timer {
+  padding-top: 0.15rem;
+}
+
+.habit-timer-display {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
 .passage {
   font-family: var(--font-display);
   font-size: 1.05rem;

@@ -1,6 +1,7 @@
 (function () {
   let state = Become.loadState();
   let fastTimer = null;
+  let habitTick = null;
   const root = document.getElementById('app');
   const errEl = document.getElementById('storage-error');
 
@@ -17,6 +18,44 @@
     }
   }
 
+  function syncHabitTimers() {
+    const { state: next } = Become.tickHabitTimers(state, Date.now());
+    if (next !== state) {
+      state = next;
+      Become.saveState(state);
+    }
+  }
+
+  function habitTimerHtml(h, today) {
+    if (!h.timed || Become.isHabitDone(state, today, h.id)) return '';
+    const timer = Become.getHabitTimer(state, h.id, Date.now());
+    if (timer) {
+      return `<div class="habit-timer">
+        <p class="habit-timer-display">${Become.formatTimer(timer.remainingMs)}</p>
+        <div class="btn-row">
+          ${
+            timer.running
+              ? `<button type="button" class="btn" data-timer-pause="${h.id}">Pause</button>`
+              : `<button type="button" class="btn btn-primary" data-timer-resume="${h.id}">Resume</button>`
+          }
+          <button type="button" class="btn" data-timer-clear="${h.id}">Cancel</button>
+        </div>
+      </div>`;
+    }
+    const mins = h.defaultMinutes || 20;
+    return `<div class="habit-timer">
+      <div class="form-grid">
+        <div class="field">
+          <label>Minutes</label>
+          <input type="number" min="1" inputmode="numeric" value="${mins}" data-timer-mins="${h.id}" />
+        </div>
+        <div class="field" style="display:flex;align-items:end">
+          <button type="button" class="btn btn-primary" style="width:100%" data-timer-start="${h.id}">Start</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function render() {
     if (!state.onboardingComplete) {
       root.innerHTML = '';
@@ -29,6 +68,7 @@
       return;
     }
 
+    syncHabitTimers();
     const today = Become.todayKey();
     state = Become.ensureWeeklySummary(state, today);
     const suggestion = Become.computeAdaptiveSuggestion(state, today);
@@ -138,14 +178,20 @@
               ${activeHabits
                 .map((h) => {
                   const done = Become.isHabitDone(state, today, h.id);
-                  return `<li>
-                    <label>
-                      <input type="checkbox" data-habit="${h.id}" ${done ? 'checked' : ''} />
-                      <span class="habit-copy">
-                        <strong>${h.name}</strong>
-                        <span class="meta">${Become.streakFor(state, h.id, today)} day streak</span>
-                      </span>
-                    </label>
+                  const timedLabel = h.timed
+                    ? ` · Timed ${h.defaultMinutes || 20}m`
+                    : '';
+                  return `<li class="habit-item">
+                    <div class="habit-item-top">
+                      <label>
+                        <input type="checkbox" data-habit="${h.id}" ${done ? 'checked' : ''} />
+                        <span class="habit-copy">
+                          <strong>${h.name}</strong>
+                          <span class="meta">${Become.streakFor(state, h.id, today)} day streak${timedLabel}</span>
+                        </span>
+                      </label>
+                    </div>
+                    ${habitTimerHtml(h, today)}
                   </li>`;
                 })
                 .join('')}
@@ -177,10 +223,53 @@
 
     root.querySelectorAll('[data-habit]').forEach((input) => {
       input.addEventListener('change', () => {
-        persist(Become.toggleHabit(state, today, input.getAttribute('data-habit')));
+        const id = input.getAttribute('data-habit');
+        let next = Become.toggleHabit(state, today, id);
+        if (Become.isHabitDone(next, today, id)) next = Become.clearHabitTimer(next, id);
+        persist(next);
         render();
       });
     });
+
+    root.querySelectorAll('[data-timer-start]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-timer-start');
+        const input = root.querySelector(`[data-timer-mins="${id}"]`);
+        const minutes = Number(input?.value) || 20;
+        persist(Become.startHabitTimer(state, id, today, minutes));
+        render();
+      });
+    });
+    root.querySelectorAll('[data-timer-pause]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        persist(Become.pauseHabitTimer(state, btn.getAttribute('data-timer-pause')));
+        render();
+      });
+    });
+    root.querySelectorAll('[data-timer-resume]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        persist(Become.resumeHabitTimer(state, btn.getAttribute('data-timer-resume')));
+        render();
+      });
+    });
+    root.querySelectorAll('[data-timer-clear]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        persist(Become.clearHabitTimer(state, btn.getAttribute('data-timer-clear')));
+        render();
+      });
+    });
+
+    if (habitTick) clearInterval(habitTick);
+    const anyRunning = Object.values(state.habitTimers || {}).some((t) => t.running);
+    if (anyRunning) {
+      habitTick = setInterval(() => {
+        const before = JSON.stringify(state.habitTimers);
+        const { state: next, completed } = Become.tickHabitTimers(state, Date.now());
+        persist(next);
+        if (completed.length || JSON.stringify(state.habitTimers) !== before) render();
+      }, 1000);
+    }
+
     const accept = root.querySelector('[data-act="accept-adaptive"]');
     if (accept) {
       accept.addEventListener('click', () => {

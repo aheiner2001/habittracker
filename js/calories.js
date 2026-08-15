@@ -53,6 +53,33 @@
     return { ...state, foodLogs };
   }
 
+  function updateFoodLog(state, dateKey, entryId, { foodId, grams, note }) {
+    const day = state.foodLogs[dateKey] || [];
+    const idx = day.findIndex((e) => e.id === entryId);
+    if (idx < 0) return state;
+    const g = Number(grams);
+    if (!(g > 0)) return state;
+    const food = state.foods.find((f) => f.id === foodId);
+    if (!food) return state;
+    const prev = day[idx];
+    const nextEntry = {
+      ...prev,
+      foodId,
+      grams: g,
+      note: note == null || note === '' ? null : String(note),
+    };
+    const nextDay = day.slice();
+    nextDay[idx] = nextEntry;
+    const foods = state.foods.map((f) =>
+      f.id === foodId ? { ...f, lastGrams: g } : f
+    );
+    return {
+      ...state,
+      foods,
+      foodLogs: { ...state.foodLogs, [dateKey]: nextDay },
+    };
+  }
+
   function dayNutrition(state, dateKey) {
     const day = state.foodLogs[dateKey] || [];
     let calories = 0;
@@ -146,6 +173,7 @@
     addFood,
     logFood,
     removeFoodLog,
+    updateFoodLog,
     dayNutrition,
     saveMeal,
     logMeal,
@@ -159,6 +187,7 @@
       addFood,
       logFood,
       removeFoodLog,
+      updateFoodLog,
       dayNutrition,
       saveMeal,
       logMeal,

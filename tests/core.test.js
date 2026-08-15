@@ -6,7 +6,7 @@ const { addDays } = require('../js/dates.js');
 const { rollingAverage } = require('../js/weight.js');
 require('../js/dates.js'); // ensure Become.addDays for weight if needed
 const { defaultState } = require('../js/storage.js');
-const { addFood, logFood, dayNutrition } = require('../js/calories.js');
+const { addFood, logFood, dayNutrition, updateFoodLog } = require('../js/calories.js');
 const { applyRedistribution, addHighCalorieEvent } = require('../js/events.js');
 const BecomeDates = require('../js/dates.js');
 
@@ -61,6 +61,44 @@ test('logging scales calories from calPerG', () => {
   const day = dayNutrition(state, '2026-08-14');
   assert.equal(day.calories, 190);
   assert.equal(day.protein, 6.5);
+});
+
+test('updateFoodLog changes grams and lastGrams', () => {
+  let state = defaultState();
+  state = addFood(state, { name: 'Oats', grams: 100, calories: 380, protein: 13 });
+  const foodId = state.foods[0].id;
+  state = logFood(state, '2026-08-14', { foodId, grams: 50 });
+  const entryId = state.foodLogs['2026-08-14'][0].id;
+  state = updateFoodLog(state, '2026-08-14', entryId, {
+    foodId,
+    grams: 100,
+    note: 'oops',
+  });
+  assert.equal(state.foodLogs['2026-08-14'][0].grams, 100);
+  assert.equal(state.foodLogs['2026-08-14'][0].note, 'oops');
+  assert.equal(state.foods[0].lastGrams, 100);
+  assert.equal(dayNutrition(state, '2026-08-14').calories, 380);
+});
+
+test('habit timer completes and marks done', () => {
+  global.Become = Object.assign(global.Become || {}, BecomeDates, require('../js/habits.js'));
+  const {
+    addHabit,
+    startHabitTimer,
+    tickHabitTimers,
+    isHabitDone,
+  } = require('../js/habits.js');
+  let state = defaultState();
+  state = addHabit(state, { name: 'Workout', timed: true, defaultMinutes: 20 });
+  const id = state.habits[0].id;
+  const now = Date.now();
+  state = startHabitTimer(state, id, '2026-08-14', 1, now);
+  state.habitTimers[id].remainingMs = 500;
+  state.habitTimers[id].updatedAt = now;
+  const { state: next, completed } = tickHabitTimers(state, now + 1000);
+  assert.equal(completed.length, 1);
+  assert.equal(isHabitDone(next, '2026-08-14', id), true);
+  assert.equal(next.habitTimers[id], undefined);
 });
 
 test('redistribution spreads surplus across preDays', () => {
