@@ -69,13 +69,12 @@ Reuse: `removeFoodLog`, `dayNutrition`, `effectiveTarget`.
 ## Testing
 
 - Unit: `updateFoodLog` changes grams/food/note; updates `lastGrams`; ignores unknown `entryId`.
-- Manual (phone): log food → expand list → edit grams → save → totals update; switch food → preview updates; delete with confirm; cancel leaves data unchanged; edit a past day’s entry via calendar day context if log is shown for selected day — **v1 editor is tied to today’s Lifestyle dashboard log only** unless calendar day detail later gains a log list. (Lifestyle Food tool logs to today; day dashboard is today.)
-
-Clarification for implementers: **edit applies to today’s log on the Lifestyle dashboard.** Editing historical days is out of scope unless the day dashboard is later bound to `selectedDateKey`; do not invent a past-day log UI in this task.
+- Manual (phone): log food → expand list → edit grams → save → totals update; switch food → preview updates; delete with confirm; cancel leaves data unchanged.
 
 ## Out of scope
 
 - Editing from Home
+- Editing historical (non-today) log days
 - Bulk edit / undo stack
 - Changing meal template definitions via log edit
 - Creating a new food from inside the edit sheet
