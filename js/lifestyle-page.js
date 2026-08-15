@@ -1,6 +1,5 @@
 (function () {
   let state = Become.loadState();
-  let selectedDateKey = Become.todayKey();
   let activeTool = sessionStorage.getItem('become-lifestyle-tool') || 'food';
   if (activeTool === 'calendar') activeTool = 'food';
   let settingsOpen = false;
