@@ -21,8 +21,14 @@
     ingredients: [],
     emptyDishG: '',
     cookedTotalG: '',
+    servingG: '200',
     saveName: '',
+    importText: '',
+    importMsg: '',
   };
+
+  let mealsImportText = '';
+  let mealsImportMsg = '';
 
   const root = document.getElementById('app');
   const errEl = document.getElementById('storage-error');
@@ -265,11 +271,37 @@
         ingredients: cookDraft.ingredients,
         emptyDishG: cookDraft.emptyDishG,
         cookedTotalG: cookDraft.cookedTotalG,
+        servingG: cookDraft.servingG || 200,
       });
+      const dash = (v, suffix = '') =>
+        v == null || v === '' ? '—' : `${v}${suffix}`;
+      const ingLine = (row) => {
+        const bits = [`${Math.round(row.calories)} kcal`];
+        if (row.protein != null) bits.push(`P ${row.protein}g`);
+        if (row.carbs != null) bits.push(`C ${row.carbs}g`);
+        if (row.fat != null) bits.push(`F ${row.fat}g`);
+        return `${row.label} · ${bits.join(' · ')}`;
+      };
       return `
         <section class="panel panel-span">
           <h2>Cooked meal calculator</h2>
-          <p class="meta">Sum raw ingredient calories, weigh the empty dish and the cooked dish, then get calories per gram of the finished food (not the glass).</p>
+          <p class="meta">Sum raw ingredient macros, tare the dish, weigh after cooking — get per-gram density and a serving preview (grams only).</p>
+        </section>
+        <section class="panel panel-span">
+          <h2>AI import</h2>
+          <p class="meta">Copy a prompt, paste a recipe or photo into any AI, then paste the JSON here.</p>
+          <div class="btn-row" style="margin-top:0.55rem">
+            <button type="button" class="btn" data-act="copy-cooked-prompt">Copy cooked prompt</button>
+            <button type="button" class="btn" data-act="copy-foods-prompt">Copy foods prompt</button>
+          </div>
+          <form id="cook-import" class="stack" style="margin-top:0.75rem">
+            <div class="field">
+              <label>Paste JSON</label>
+              <textarea name="json" rows="5" placeholder='{"becomeImport":1,"type":"cookedRecipe",...}'>${cookDraft.importText || ''}</textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Import JSON</button>
+            ${cookDraft.importMsg ? `<p class="meta">${cookDraft.importMsg}</p>` : ''}
+          </form>
         </section>
         <section class="panel panel-span">
           <h2>1. Raw ingredients</h2>
@@ -290,11 +322,13 @@
             </div>
           </form>
           <form id="cook-add-manual" class="stack" style="margin-top:0.85rem">
-            <p class="day-dash-label">Or enter calories directly</p>
+            <p class="day-dash-label">Or enter macros for the amount used</p>
             <div class="form-grid">
               <div class="field field-span"><label>Label</label><input name="label" placeholder="e.g. Cheese" required /></div>
               <div class="field"><label>Calories</label><input name="calories" type="number" required /></div>
-              <div class="field"><label>Protein (g)</label><input name="protein" type="number" /></div>
+              <div class="field"><label>Protein (g)</label><input name="protein" type="number" step="0.1" /></div>
+              <div class="field"><label>Carbs (g)</label><input name="carbs" type="number" step="0.1" /></div>
+              <div class="field"><label>Fat (g)</label><input name="fat" type="number" step="0.1" /></div>
               <div class="field" style="display:flex;align-items:end">
                 <button class="btn" type="submit" style="width:100%">Add</button>
               </div>
@@ -306,21 +340,19 @@
                 ? cookDraft.ingredients
                     .map(
                       (row, i) =>
-                        `<li><span>${row.label} · ${Math.round(row.calories)} kcal</span>
+                        `<li><span>${ingLine(row)}</span>
                         <button type="button" class="btn" data-cook-rm="${i}">Remove</button></li>`
                     )
                     .join('')
                 : '<li class="meta">No ingredients yet.</li>'
             }
           </ul>
-          <p class="metric" style="margin-top:0.65rem">${result.totalCalories}</p>
-          <p class="meta">total raw kcal</p>
         </section>
         <section class="panel panel-span">
           <h2>2. Dish weights</h2>
           <div class="form-grid" style="margin-top:0.55rem">
             <div class="field">
-              <label>Empty dish (g)</label>
+              <label>Empty dish / tare (g)</label>
               <input id="cook-empty" type="number" step="0.1" inputmode="decimal" value="${cookDraft.emptyDishG}" />
             </div>
             <div class="field">
@@ -331,20 +363,41 @@
           <p class="meta" style="margin-top:0.55rem">Weigh after baking — water loss changes weight, not calories.</p>
         </section>
         <section class="panel panel-span">
-          <h2>3. Result</h2>
+          <h2>3. Recipe yield summary</h2>
           ${
             result.ok
-              ? `<div class="day-detail-grid" style="margin-top:0.55rem">
-                  <div>
-                    <p class="day-dash-label">Net food</p>
-                    <p class="metric">${result.netWeightG}</p>
-                    <p class="meta">grams</p>
+              ? `<div class="stack" style="margin-top:0.55rem">
+                  <p class="day-dash-label">Yield</p>
+                  <ul class="simple-list">
+                    <li><span>Empty container (tare)</span><span>${dash(Number(cookDraft.emptyDishG), ' g')}</span></li>
+                    <li><span>Total cooked (container + food)</span><span>${dash(Number(cookDraft.cookedTotalG), ' g')}</span></li>
+                    <li><span>Net cooked food</span><span>${result.netWeightG} g</span></li>
+                  </ul>
+                  <p class="day-dash-label" style="margin-top:0.75rem">Total batch macros</p>
+                  <ul class="simple-list">
+                    <li><span>Calories</span><span>${result.totalCalories} kcal</span></li>
+                    <li><span>Protein</span><span>${dash(result.totalProtein, ' g')}</span></li>
+                    <li><span>Carbs</span><span>${dash(result.totalCarbs, ' g')}</span></li>
+                    <li><span>Fat</span><span>${dash(result.totalFat, ' g')}</span></li>
+                  </ul>
+                  <p class="day-dash-label" style="margin-top:0.75rem">Per-gram density</p>
+                  <ul class="simple-list">
+                    <li><span>Calories</span><span>${result.calPerG} kcal/g</span></li>
+                    <li><span>Protein</span><span>${dash(result.proteinPerG, ' g/g')}</span></li>
+                    <li><span>Carbs</span><span>${dash(result.carbsPerG, ' g/g')}</span></li>
+                    <li><span>Fat</span><span>${dash(result.fatPerG, ' g/g')}</span></li>
+                  </ul>
+                  <div class="field" style="margin-top:0.75rem">
+                    <label>Serving size (g)</label>
+                    <input id="cook-serving" type="number" step="1" inputmode="numeric" value="${cookDraft.servingG || 200}" />
                   </div>
-                  <div>
-                    <p class="day-dash-label">Density</p>
-                    <p class="metric">${result.calPerG}</p>
-                    <p class="meta">kcal per gram</p>
-                  </div>
+                  <p class="day-dash-label" style="margin-top:0.55rem">Serving macros (${result.servingG}g)</p>
+                  <ul class="simple-list">
+                    <li><span>Calories</span><span>${dash(result.servingCalories, ' kcal')}</span></li>
+                    <li><span>Protein</span><span>${dash(result.servingProtein, ' g')}</span></li>
+                    <li><span>Carbs</span><span>${dash(result.servingCarbs, ' g')}</span></li>
+                    <li><span>Fat</span><span>${dash(result.servingFat, ' g')}</span></li>
+                  </ul>
                 </div>
                 <form id="cook-save" class="stack" style="margin-top:0.85rem">
                   <div class="field">
@@ -353,7 +406,7 @@
                   </div>
                   <button class="btn btn-primary" type="submit">Save cooked food</button>
                 </form>
-                <p class="meta">Then log servings by weighing a portion — calories auto-scale.</p>`
+                <p class="meta">Then log servings by weighing a portion — macros auto-scale.</p>`
               : `<p class="meta" style="margin-top:0.55rem">Add ingredients and both dish weights (cooked total must be heavier than the empty dish).</p>`
           }
         </section>`;
@@ -373,6 +426,21 @@
               <div class="field"><label>Fat (g)</label><input name="fat" type="number" /></div>
             </div>
             <button class="btn btn-primary" type="submit">Save food</button>
+          </form>
+        </section>
+        <section class="panel panel-span">
+          <h2>AI import foods</h2>
+          <p class="meta">Copy the foods prompt, describe foods (or paste a photo) into AI, then import the JSON.</p>
+          <div class="btn-row" style="margin-top:0.55rem">
+            <button type="button" class="btn" data-act="copy-foods-prompt">Copy foods prompt</button>
+          </div>
+          <form id="meals-import" class="stack" style="margin-top:0.75rem">
+            <div class="field">
+              <label>Paste JSON</label>
+              <textarea name="json" rows="5" placeholder='{"becomeImport":1,"type":"foods",...}'>${mealsImportText || ''}</textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Import foods</button>
+            ${mealsImportMsg ? `<p class="meta">${mealsImportMsg}</p>` : ''}
           </form>
         </section>
         <section class="panel panel-span">
@@ -782,11 +850,15 @@
 
     const cookEmpty = root.querySelector('#cook-empty');
     const cookTotal = root.querySelector('#cook-total');
+    const cookServing = root.querySelector('#cook-serving');
     const syncCookWeights = () => {
       if (cookEmpty) cookDraft.emptyDishG = cookEmpty.value;
       if (cookTotal) cookDraft.cookedTotalG = cookTotal.value;
+      if (cookServing) cookDraft.servingG = cookServing.value;
       const nameInput = root.querySelector('#cook-save [name="name"]');
       if (nameInput) cookDraft.saveName = nameInput.value;
+      const importTa = root.querySelector('#cook-import [name="json"]');
+      if (importTa) cookDraft.importText = importTa.value;
     };
 
     const cookAddLib = root.querySelector('#cook-add-lib');
@@ -819,14 +891,17 @@
         const fd = new FormData(cookAddManual);
         const calories = Number(fd.get('calories'));
         if (!(calories > 0)) return;
-        const protein = fd.get('protein');
+        const opt = (key) => {
+          const v = fd.get(key);
+          return v === '' || v == null ? null : Number(v);
+        };
         cookDraft.ingredients.push({
           id: `ing-${Date.now()}`,
           label: String(fd.get('label') || 'Ingredient').trim(),
           calories,
-          protein: protein === '' || protein == null ? null : Number(protein),
-          carbs: null,
-          fat: null,
+          protein: opt('protein'),
+          carbs: opt('carbs'),
+          fat: opt('fat'),
         });
         render();
       });
@@ -853,6 +928,124 @@
         render();
       });
     }
+    if (cookServing) {
+      cookServing.addEventListener('change', () => {
+        cookDraft.servingG = cookServing.value || '200';
+        render();
+      });
+    }
+
+    const cookImport = root.querySelector('#cook-import');
+    if (cookImport) {
+      cookImport.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = new FormData(cookImport).get('json');
+        cookDraft.importText = text;
+        const parsed = Become.parseBecomeImport(String(text || ''));
+        if (!parsed.ok) {
+          cookDraft.importMsg = parsed.error || 'Import failed';
+          render();
+          return;
+        }
+        if (parsed.type === 'foods') {
+          persist(Become.importFoods(state, parsed.data.foods));
+          cookDraft.importMsg = `Imported ${parsed.data.foods.length} food(s) into library.`;
+          cookDraft.importText = '';
+          render();
+          return;
+        }
+        if (parsed.type === 'cookedRecipe') {
+          const d = parsed.data;
+          cookDraft.ingredients = d.ingredients.map((row, i) => ({
+            id: `ing-${Date.now()}-${i}`,
+            ...row,
+          }));
+          cookDraft.emptyDishG =
+            d.emptyDishG == null || d.emptyDishG === '' ? '' : String(d.emptyDishG);
+          cookDraft.cookedTotalG =
+            d.cookedTotalG == null || d.cookedTotalG === ''
+              ? ''
+              : String(d.cookedTotalG);
+          cookDraft.servingG =
+            d.servingG == null || d.servingG === '' ? '200' : String(d.servingG);
+          cookDraft.saveName = d.name || '';
+          cookDraft.importMsg = 'Recipe loaded — check weights and save when ready.';
+          cookDraft.importText = '';
+          render();
+        }
+      });
+    }
+
+    const mealsImport = root.querySelector('#meals-import');
+    if (mealsImport) {
+      mealsImport.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = new FormData(mealsImport).get('json');
+        mealsImportText = text;
+        const parsed = Become.parseBecomeImport(String(text || ''));
+        if (!parsed.ok) {
+          mealsImportMsg = parsed.error || 'Import failed';
+          render();
+          return;
+        }
+        if (parsed.type === 'foods') {
+          persist(Become.importFoods(state, parsed.data.foods));
+          mealsImportMsg = `Imported ${parsed.data.foods.length} food(s).`;
+          mealsImportText = '';
+          render();
+          return;
+        }
+        if (parsed.type === 'cookedRecipe') {
+          const d = parsed.data;
+          cookDraft.ingredients = d.ingredients.map((row, i) => ({
+            id: `ing-${Date.now()}-${i}`,
+            ...row,
+          }));
+          cookDraft.emptyDishG =
+            d.emptyDishG == null || d.emptyDishG === '' ? '' : String(d.emptyDishG);
+          cookDraft.cookedTotalG =
+            d.cookedTotalG == null || d.cookedTotalG === ''
+              ? ''
+              : String(d.cookedTotalG);
+          cookDraft.servingG =
+            d.servingG == null || d.servingG === '' ? '200' : String(d.servingG);
+          cookDraft.saveName = d.name || '';
+          cookDraft.importMsg = 'Recipe loaded from Meals import.';
+          mealsImportMsg = 'Opened in Cooked tool.';
+          mealsImportText = '';
+          setTool('cook');
+          return;
+        }
+        mealsImportMsg = 'Use type foods or cookedRecipe.';
+        render();
+      });
+    }
+
+    async function copyText(text, okMsg) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (activeTool === 'cook') {
+          cookDraft.importMsg = okMsg;
+        } else {
+          mealsImportMsg = okMsg;
+        }
+      } catch {
+        if (activeTool === 'cook') cookDraft.importMsg = 'Could not copy — select text manually.';
+        else mealsImportMsg = 'Could not copy — select text manually.';
+      }
+      render();
+    }
+
+    root.querySelectorAll('[data-act="copy-foods-prompt"]').forEach((btn) => {
+      btn.addEventListener('click', () =>
+        copyText(Become.FOODS_IMPORT_PROMPT, 'Foods prompt copied.')
+      );
+    });
+    root.querySelectorAll('[data-act="copy-cooked-prompt"]').forEach((btn) => {
+      btn.addEventListener('click', () =>
+        copyText(Become.COOKED_IMPORT_PROMPT, 'Cooked recipe prompt copied.')
+      );
+    });
 
     const cookSave = root.querySelector('#cook-save');
     if (cookSave) {
@@ -862,10 +1055,12 @@
         cookDraft.saveName = name;
         if (cookEmpty) cookDraft.emptyDishG = cookEmpty.value;
         if (cookTotal) cookDraft.cookedTotalG = cookTotal.value;
+        if (cookServing) cookDraft.servingG = cookServing.value;
         const result = Become.computeCookedMeal({
           ingredients: cookDraft.ingredients,
           emptyDishG: cookDraft.emptyDishG,
           cookedTotalG: cookDraft.cookedTotalG,
+          servingG: cookDraft.servingG || 200,
         });
         if (!result.ok) return;
         persist(Become.saveCookedMealAsFood(state, { name, result }));
@@ -873,7 +1068,10 @@
           ingredients: [],
           emptyDishG: '',
           cookedTotalG: '',
+          servingG: '200',
           saveName: '',
+          importText: '',
+          importMsg: '',
         };
         setTool('food');
       });

@@ -84,16 +84,65 @@ test('computeCookedMeal uses net cooked weight for cal per gram', () => {
   const { computeCookedMeal } = require('../js/calories.js');
   const result = computeCookedMeal({
     ingredients: [
-      { label: 'A', calories: 6000 },
-      { label: 'B', calories: 4000 },
+      { label: 'A', calories: 6000, protein: 400, carbs: 100, fat: 200 },
+      { label: 'B', calories: 4000, protein: 100, carbs: 50, fat: 50 },
     ],
     emptyDishG: 500,
     cookedTotalG: 1500,
+    servingG: 200,
   });
   assert.equal(result.totalCalories, 10000);
+  assert.equal(result.totalProtein, 500);
+  assert.equal(result.totalCarbs, 150);
+  assert.equal(result.totalFat, 250);
   assert.equal(result.netWeightG, 1000);
   assert.equal(result.calPerG, 10);
+  assert.equal(result.proteinPerG, 0.5);
+  assert.equal(result.carbsPerG, 0.15);
+  assert.equal(result.fatPerG, 0.25);
+  assert.equal(result.servingG, 200);
+  assert.equal(result.servingCalories, 2000);
+  assert.equal(result.servingProtein, 100);
+  assert.equal(result.servingCarbs, 30);
+  assert.equal(result.servingFat, 50);
   assert.equal(result.ok, true);
+});
+
+test('parseBecomeImport accepts foods and cookedRecipe', () => {
+  const { parseBecomeImport, importFoods } = require('../js/calories.js');
+  const { defaultState } = require('../js/storage.js');
+  const foodsPayload = parseBecomeImport(
+    JSON.stringify({
+      becomeImport: 1,
+      type: 'foods',
+      foods: [{ name: 'Eggs', grams: 100, calories: 143, protein: 13, carbs: 1, fat: 10 }],
+    })
+  );
+  assert.equal(foodsPayload.ok, true);
+  assert.equal(foodsPayload.type, 'foods');
+  assert.equal(foodsPayload.data.foods.length, 1);
+  let state = importFoods(defaultState(), foodsPayload.data.foods);
+  assert.equal(state.foods.length, 1);
+  assert.equal(state.foods[0].name, 'Eggs');
+
+  const cooked = parseBecomeImport(
+    JSON.stringify({
+      becomeImport: 1,
+      type: 'cookedRecipe',
+      name: 'Casserole',
+      emptyDishG: 500,
+      cookedTotalG: 1500,
+      servingG: 200,
+      ingredients: [{ label: 'Eggs', calories: 720, protein: 60, carbs: 4, fat: 48 }],
+    })
+  );
+  assert.equal(cooked.ok, true);
+  assert.equal(cooked.type, 'cookedRecipe');
+  assert.equal(cooked.data.ingredients.length, 1);
+  assert.equal(cooked.data.emptyDishG, 500);
+
+  const bad = parseBecomeImport('{"type":"foods"}');
+  assert.equal(bad.ok, false);
 });
 
 test('habit timer completes and marks done', () => {

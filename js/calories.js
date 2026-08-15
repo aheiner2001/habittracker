@@ -170,10 +170,10 @@
   }
 
   /**
-   * Cooked-dish density: total raw calories stay constant; cooked net weight shrinks.
-   * calPerG = totalRawCalories / (cookedTotalG - emptyDishG)
+   * Cooked-dish density: total raw macros stay constant; cooked net weight shrinks.
+   * perGram = totalMacro / (cookedTotalG - emptyDishG)
    */
-  function computeCookedMeal({ ingredients, emptyDishG, cookedTotalG }) {
+  function computeCookedMeal({ ingredients, emptyDishG, cookedTotalG, servingG }) {
     const list = ingredients || [];
     const totalCalories = list.reduce((sum, row) => sum + (Number(row.calories) || 0), 0);
     const totalProtein = list.reduce((sum, row) => {
@@ -197,17 +197,33 @@
       Number.isFinite(empty) &&
       Number.isFinite(cooked) &&
       netWeightG > 0;
+    const round3 = (n) => Math.round(n * 1000) / 1000;
+    const round1 = (n) => Math.round(n * 10) / 10;
     const calPerG = ok ? totalCalories / netWeightG : null;
     const hasProtein = list.some((r) => r.protein != null && r.protein !== '');
     const hasCarbs = list.some((r) => r.carbs != null && r.carbs !== '');
     const hasFat = list.some((r) => r.fat != null && r.fat !== '');
+    const proteinPerG = ok && hasProtein ? totalProtein / netWeightG : null;
+    const carbsPerG = ok && hasCarbs ? totalCarbs / netWeightG : null;
+    const fatPerG = ok && hasFat ? totalFat / netWeightG : null;
+    const serve = Number(servingG);
+    const servingOk = ok && Number.isFinite(serve) && serve > 0;
     return {
-      totalCalories: Math.round(totalCalories * 10) / 10,
-      totalProtein: hasProtein ? Math.round(totalProtein * 10) / 10 : null,
-      totalCarbs: hasCarbs ? Math.round(totalCarbs * 10) / 10 : null,
-      totalFat: hasFat ? Math.round(totalFat * 10) / 10 : null,
-      netWeightG: Number.isFinite(netWeightG) ? Math.round(netWeightG * 10) / 10 : null,
-      calPerG: calPerG != null ? Math.round(calPerG * 1000) / 1000 : null,
+      totalCalories: round1(totalCalories),
+      totalProtein: hasProtein ? round1(totalProtein) : null,
+      totalCarbs: hasCarbs ? round1(totalCarbs) : null,
+      totalFat: hasFat ? round1(totalFat) : null,
+      netWeightG: Number.isFinite(netWeightG) ? round1(netWeightG) : null,
+      calPerG: calPerG != null ? round3(calPerG) : null,
+      proteinPerG: proteinPerG != null ? round3(proteinPerG) : null,
+      carbsPerG: carbsPerG != null ? round3(carbsPerG) : null,
+      fatPerG: fatPerG != null ? round3(fatPerG) : null,
+      servingG: servingOk ? serve : null,
+      servingCalories: servingOk ? round1(calPerG * serve) : null,
+      servingProtein:
+        servingOk && proteinPerG != null ? round1(proteinPerG * serve) : null,
+      servingCarbs: servingOk && carbsPerG != null ? round1(carbsPerG * serve) : null,
+      servingFat: servingOk && fatPerG != null ? round1(fatPerG * serve) : null,
       ok,
     };
   }
@@ -225,6 +241,104 @@
     });
   }
 
+  function parseBecomeImport(jsonString) {
+    let data;
+    try {
+      data = JSON.parse(jsonString);
+    } catch {
+      return { ok: false, error: 'Invalid JSON' };
+    }
+    if (!data || data.becomeImport !== 1) {
+      return { ok: false, error: 'Missing becomeImport: 1' };
+    }
+    if (data.type === 'foods') {
+      const foods = Array.isArray(data.foods) ? data.foods : null;
+      if (!foods || !foods.length) {
+        return { ok: false, error: 'foods array required' };
+      }
+      for (const f of foods) {
+        if (!f || !String(f.name || '').trim()) {
+          return { ok: false, error: 'Each food needs a name' };
+        }
+        if (!(Number(f.grams) > 0) || !(Number(f.calories) >= 0)) {
+          return { ok: false, error: 'Each food needs grams and calories' };
+        }
+      }
+      return { ok: true, type: 'foods', data: { foods } };
+    }
+    if (data.type === 'cookedRecipe') {
+      const ingredients = Array.isArray(data.ingredients) ? data.ingredients : null;
+      if (!ingredients || !ingredients.length) {
+        return { ok: false, error: 'ingredients array required' };
+      }
+      for (const row of ingredients) {
+        if (!row || !(Number(row.calories) > 0)) {
+          return { ok: false, error: 'Each ingredient needs calories' };
+        }
+      }
+      return {
+        ok: true,
+        type: 'cookedRecipe',
+        data: {
+          name: data.name ? String(data.name).trim() : '',
+          emptyDishG: data.emptyDishG,
+          cookedTotalG: data.cookedTotalG,
+          servingG: data.servingG,
+          ingredients: ingredients.map((row) => ({
+            label: String(row.label || 'Ingredient').trim(),
+            calories: Number(row.calories),
+            protein:
+              row.protein == null || row.protein === '' ? null : Number(row.protein),
+            carbs: row.carbs == null || row.carbs === '' ? null : Number(row.carbs),
+            fat: row.fat == null || row.fat === '' ? null : Number(row.fat),
+          })),
+        },
+      };
+    }
+    return { ok: false, error: 'Unknown type (use foods or cookedRecipe)' };
+  }
+
+  function importFoods(state, foods) {
+    let next = state;
+    for (const f of foods || []) {
+      next = addFood(next, {
+        name: f.name,
+        grams: f.grams,
+        calories: f.calories,
+        protein: f.protein,
+        carbs: f.carbs,
+        fat: f.fat,
+      });
+    }
+    return next;
+  }
+
+  const FOODS_IMPORT_PROMPT = `You are helping me import foods into Become (a fitness tracker).
+Return ONLY valid JSON (no markdown) matching this exact shape:
+{
+  "becomeImport": 1,
+  "type": "foods",
+  "foods": [
+    { "name": "Food name", "grams": 100, "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
+  ]
+}
+Rules: grams are the reference amount for the macros. Use grams only. Omit protein/carbs/fat if unknown (or set null). I may paste a recipe photo or list several foods — include all of them in the foods array.`;
+
+  const COOKED_IMPORT_PROMPT = `You are helping me import a cooked recipe into Become (a fitness tracker).
+Return ONLY valid JSON (no markdown) matching this exact shape:
+{
+  "becomeImport": 1,
+  "type": "cookedRecipe",
+  "name": "Recipe name",
+  "emptyDishG": 0,
+  "cookedTotalG": 0,
+  "servingG": 200,
+  "ingredients": [
+    { "label": "Ingredient", "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
+  ]
+}
+Rules: emptyDishG is tare (empty container). cookedTotalG is container + cooked food. Ingredient macros are TOTALS for the amount used in the whole recipe (not per 100g). Use grams only. If tare/cooked weights are unknown, use 0 and I will fill them in. I may paste a recipe photo or describe ingredients — estimate macros from labels when needed.`;
+
   Object.assign(Become, {
     addFood,
     logFood,
@@ -238,6 +352,10 @@
     frequentFoods,
     computeCookedMeal,
     saveCookedMealAsFood,
+    parseBecomeImport,
+    importFoods,
+    FOODS_IMPORT_PROMPT,
+    COOKED_IMPORT_PROMPT,
   });
 
   if (typeof module !== 'undefined' && module.exports) {
@@ -254,6 +372,10 @@
       frequentFoods,
       computeCookedMeal,
       saveCookedMealAsFood,
+      parseBecomeImport,
+      importFoods,
+      FOODS_IMPORT_PROMPT,
+      COOKED_IMPORT_PROMPT,
     };
   }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
