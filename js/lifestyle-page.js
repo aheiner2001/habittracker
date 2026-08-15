@@ -10,11 +10,19 @@
   const TOOLS = [
     { id: 'food', label: 'Food' },
     { id: 'weight', label: 'Weight' },
+    { id: 'cook', label: 'Cooked' },
     { id: 'meals', label: 'Meals' },
     { id: 'calendar', label: 'Calendar' },
     { id: 'plan', label: 'Plan' },
     { id: 'measure', label: 'Body' },
   ];
+
+  let cookDraft = {
+    ingredients: [],
+    emptyDishG: '',
+    cookedTotalG: '',
+    saveName: '',
+  };
 
   const root = document.getElementById('app');
   const errEl = document.getElementById('storage-error');
@@ -249,6 +257,105 @@
             <button type="button" class="btn ${windowDays === 14 ? 'btn-primary' : ''}" data-window="14">14-day</button>
           </div>
           <div id="weight-chart"></div>
+        </section>`;
+    }
+
+    if (activeTool === 'cook') {
+      const result = Become.computeCookedMeal({
+        ingredients: cookDraft.ingredients,
+        emptyDishG: cookDraft.emptyDishG,
+        cookedTotalG: cookDraft.cookedTotalG,
+      });
+      return `
+        <section class="panel panel-span">
+          <h2>Cooked meal calculator</h2>
+          <p class="meta">Sum raw ingredient calories, weigh the empty dish and the cooked dish, then get calories per gram of the finished food (not the glass).</p>
+        </section>
+        <section class="panel panel-span">
+          <h2>1. Raw ingredients</h2>
+          <form id="cook-add-lib" class="stack" style="margin-top:0.55rem">
+            <p class="day-dash-label">From library</p>
+            <div class="form-grid">
+              <div class="field field-span">
+                <label>Food</label>
+                <select name="foodId">${foodOptions() || '<option value="">Add foods under Meals first</option>'}</select>
+              </div>
+              <div class="field">
+                <label>Raw grams used</label>
+                <input name="grams" type="number" step="1" inputmode="numeric" required />
+              </div>
+              <div class="field" style="display:flex;align-items:end">
+                <button class="btn" type="submit" style="width:100%">Add</button>
+              </div>
+            </div>
+          </form>
+          <form id="cook-add-manual" class="stack" style="margin-top:0.85rem">
+            <p class="day-dash-label">Or enter calories directly</p>
+            <div class="form-grid">
+              <div class="field field-span"><label>Label</label><input name="label" placeholder="e.g. Cheese" required /></div>
+              <div class="field"><label>Calories</label><input name="calories" type="number" required /></div>
+              <div class="field"><label>Protein (g)</label><input name="protein" type="number" /></div>
+              <div class="field" style="display:flex;align-items:end">
+                <button class="btn" type="submit" style="width:100%">Add</button>
+              </div>
+            </div>
+          </form>
+          <ul class="simple-list" style="margin-top:0.75rem">
+            ${
+              cookDraft.ingredients.length
+                ? cookDraft.ingredients
+                    .map(
+                      (row, i) =>
+                        `<li><span>${row.label} · ${Math.round(row.calories)} kcal</span>
+                        <button type="button" class="btn" data-cook-rm="${i}">Remove</button></li>`
+                    )
+                    .join('')
+                : '<li class="meta">No ingredients yet.</li>'
+            }
+          </ul>
+          <p class="metric" style="margin-top:0.65rem">${result.totalCalories}</p>
+          <p class="meta">total raw kcal</p>
+        </section>
+        <section class="panel panel-span">
+          <h2>2. Dish weights</h2>
+          <div class="form-grid" style="margin-top:0.55rem">
+            <div class="field">
+              <label>Empty dish (g)</label>
+              <input id="cook-empty" type="number" step="0.1" inputmode="decimal" value="${cookDraft.emptyDishG}" />
+            </div>
+            <div class="field">
+              <label>Cooked dish + food (g)</label>
+              <input id="cook-total" type="number" step="0.1" inputmode="decimal" value="${cookDraft.cookedTotalG}" />
+            </div>
+          </div>
+          <p class="meta" style="margin-top:0.55rem">Weigh after baking — water loss changes weight, not calories.</p>
+        </section>
+        <section class="panel panel-span">
+          <h2>3. Result</h2>
+          ${
+            result.ok
+              ? `<div class="day-detail-grid" style="margin-top:0.55rem">
+                  <div>
+                    <p class="day-dash-label">Net food</p>
+                    <p class="metric">${result.netWeightG}</p>
+                    <p class="meta">grams</p>
+                  </div>
+                  <div>
+                    <p class="day-dash-label">Density</p>
+                    <p class="metric">${result.calPerG}</p>
+                    <p class="meta">kcal per gram</p>
+                  </div>
+                </div>
+                <form id="cook-save" class="stack" style="margin-top:0.85rem">
+                  <div class="field">
+                    <label>Save to food library as</label>
+                    <input name="name" required placeholder="Breakfast casserole" value="${cookDraft.saveName || ''}" />
+                  </div>
+                  <button class="btn btn-primary" type="submit">Save cooked food</button>
+                </form>
+                <p class="meta">Then log servings by weighing a portion — calories auto-scale.</p>`
+              : `<p class="meta" style="margin-top:0.55rem">Add ingredients and both dish weights (cooked total must be heavier than the empty dish).</p>`
+          }
         </section>`;
     }
 
@@ -672,6 +779,105 @@
         render();
       });
     });
+
+    const cookEmpty = root.querySelector('#cook-empty');
+    const cookTotal = root.querySelector('#cook-total');
+    const syncCookWeights = () => {
+      if (cookEmpty) cookDraft.emptyDishG = cookEmpty.value;
+      if (cookTotal) cookDraft.cookedTotalG = cookTotal.value;
+      const nameInput = root.querySelector('#cook-save [name="name"]');
+      if (nameInput) cookDraft.saveName = nameInput.value;
+    };
+
+    const cookAddLib = root.querySelector('#cook-add-lib');
+    if (cookAddLib) {
+      cookAddLib.addEventListener('submit', (e) => {
+        e.preventDefault();
+        syncCookWeights();
+        const fd = new FormData(cookAddLib);
+        const foodId = fd.get('foodId');
+        const grams = Number(fd.get('grams'));
+        const food = state.foods.find((f) => f.id === foodId);
+        if (!food || !(grams > 0)) return;
+        cookDraft.ingredients.push({
+          id: `ing-${Date.now()}`,
+          label: `${food.name} (${grams}g)`,
+          calories: food.calPerG * grams,
+          protein: food.proteinPerG != null ? food.proteinPerG * grams : null,
+          carbs: food.carbsPerG != null ? food.carbsPerG * grams : null,
+          fat: food.fatPerG != null ? food.fatPerG * grams : null,
+        });
+        render();
+      });
+    }
+
+    const cookAddManual = root.querySelector('#cook-add-manual');
+    if (cookAddManual) {
+      cookAddManual.addEventListener('submit', (e) => {
+        e.preventDefault();
+        syncCookWeights();
+        const fd = new FormData(cookAddManual);
+        const calories = Number(fd.get('calories'));
+        if (!(calories > 0)) return;
+        const protein = fd.get('protein');
+        cookDraft.ingredients.push({
+          id: `ing-${Date.now()}`,
+          label: String(fd.get('label') || 'Ingredient').trim(),
+          calories,
+          protein: protein === '' || protein == null ? null : Number(protein),
+          carbs: null,
+          fat: null,
+        });
+        render();
+      });
+    }
+
+    root.querySelectorAll('[data-cook-rm]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        syncCookWeights();
+        const i = Number(btn.getAttribute('data-cook-rm'));
+        cookDraft.ingredients.splice(i, 1);
+        render();
+      });
+    });
+
+    if (cookEmpty) {
+      cookEmpty.addEventListener('change', () => {
+        cookDraft.emptyDishG = cookEmpty.value;
+        render();
+      });
+    }
+    if (cookTotal) {
+      cookTotal.addEventListener('change', () => {
+        cookDraft.cookedTotalG = cookTotal.value;
+        render();
+      });
+    }
+
+    const cookSave = root.querySelector('#cook-save');
+    if (cookSave) {
+      cookSave.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = new FormData(cookSave).get('name');
+        cookDraft.saveName = name;
+        if (cookEmpty) cookDraft.emptyDishG = cookEmpty.value;
+        if (cookTotal) cookDraft.cookedTotalG = cookTotal.value;
+        const result = Become.computeCookedMeal({
+          ingredients: cookDraft.ingredients,
+          emptyDishG: cookDraft.emptyDishG,
+          cookedTotalG: cookDraft.cookedTotalG,
+        });
+        if (!result.ok) return;
+        persist(Become.saveCookedMealAsFood(state, { name, result }));
+        cookDraft = {
+          ingredients: [],
+          emptyDishG: '',
+          cookedTotalG: '',
+          saveName: '',
+        };
+        setTool('food');
+      });
+    }
 
     const water = root.querySelector('[data-act="log-water"]');
     if (water) {

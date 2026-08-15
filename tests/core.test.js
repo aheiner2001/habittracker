@@ -80,6 +80,22 @@ test('updateFoodLog changes grams and lastGrams', () => {
   assert.equal(dayNutrition(state, '2026-08-14').calories, 380);
 });
 
+test('computeCookedMeal uses net cooked weight for cal per gram', () => {
+  const { computeCookedMeal } = require('../js/calories.js');
+  const result = computeCookedMeal({
+    ingredients: [
+      { label: 'A', calories: 6000 },
+      { label: 'B', calories: 4000 },
+    ],
+    emptyDishG: 500,
+    cookedTotalG: 1500,
+  });
+  assert.equal(result.totalCalories, 10000);
+  assert.equal(result.netWeightG, 1000);
+  assert.equal(result.calPerG, 10);
+  assert.equal(result.ok, true);
+});
+
 test('habit timer completes and marks done', () => {
   global.Become = Object.assign(global.Become || {}, BecomeDates, require('../js/habits.js'));
   const {
