@@ -2,6 +2,8 @@
   let state = Become.loadState();
   let fastTimer = null;
   let habitTick = null;
+  let calendarCursor = Become.startOfMonth(new Date());
+  let selectedDateKey = Become.todayKey();
   const root = document.getElementById('app');
   const errEl = document.getElementById('storage-error');
 
@@ -197,6 +199,10 @@
                 .join('')}
             </ul>
           </section>
+          <section class="panel panel-span">
+            <h2>Calendar</h2>
+            <div id="cal-root"></div>
+          </section>
           ${
             state.settings.showMeasurementsOnHome && state.measurements.length
               ? (() => {
@@ -220,6 +226,22 @@
 
     const dateEl = root.querySelector('#shell-date');
     if (dateEl) dateEl.textContent = Become.formatLongDate();
+
+    const cal = root.querySelector('#cal-root');
+    if (cal) {
+      Become.renderLifestyleCalendar(cal, state, {
+        cursor: calendarCursor,
+        selectedDateKey,
+        onSelect: (key) => {
+          selectedDateKey = key;
+          render();
+        },
+        onMonthChange: (d) => {
+          calendarCursor = d;
+          render();
+        },
+      });
+    }
 
     root.querySelectorAll('[data-habit]').forEach((input) => {
       input.addEventListener('change', () => {

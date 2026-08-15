@@ -1,8 +1,8 @@
 (function () {
   let state = Become.loadState();
-  let calendarCursor = Become.startOfMonth(new Date());
   let selectedDateKey = Become.todayKey();
   let activeTool = sessionStorage.getItem('become-lifestyle-tool') || 'food';
+  if (activeTool === 'calendar') activeTool = 'food';
   let settingsOpen = false;
   let logExpanded = false;
   let editingEntryId = null;
@@ -12,7 +12,6 @@
     { id: 'weight', label: 'Weight' },
     { id: 'cook', label: 'Cooked' },
     { id: 'meals', label: 'Meals' },
-    { id: 'calendar', label: 'Calendar' },
     { id: 'plan', label: 'Plan' },
     { id: 'measure', label: 'Body' },
   ];
@@ -456,10 +455,6 @@
         </section>`;
     }
 
-    if (activeTool === 'calendar') {
-      return `<section class="panel panel-span"><h2>Calendar</h2><div id="cal-root"></div></section>`;
-    }
-
     if (activeTool === 'plan') {
       return `
         <section class="panel panel-span">
@@ -672,23 +667,6 @@
     if (activeTool === 'weight') {
       const chart = root.querySelector('#weight-chart');
       if (chart) Become.renderWeightChart(chart, series, { windowDays });
-    }
-    if (activeTool === 'calendar') {
-      const cal = root.querySelector('#cal-root');
-      if (cal) {
-        Become.renderLifestyleCalendar(cal, state, {
-          cursor: calendarCursor,
-          selectedDateKey,
-          onSelect: (key) => {
-            selectedDateKey = key;
-            render();
-          },
-          onMonthChange: (d) => {
-            calendarCursor = d;
-            render();
-          },
-        });
-      }
     }
 
     bind();
