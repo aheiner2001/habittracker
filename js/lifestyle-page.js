@@ -1,7 +1,6 @@
 (function () {
   let state = Become.loadState();
   let activeTool = sessionStorage.getItem('become-lifestyle-tool') || 'food';
-  if (activeTool === 'calendar') activeTool = 'food';
   let settingsOpen = false;
   let logExpanded = false;
   let editingEntryId = null;
@@ -14,6 +13,11 @@
     { id: 'plan', label: 'Plan' },
     { id: 'measure', label: 'Body' },
   ];
+
+  if (!TOOLS.some((t) => t.id === activeTool)) {
+    activeTool = 'food';
+    sessionStorage.setItem('become-lifestyle-tool', 'food');
+  }
 
   let cookDraft = {
     ingredients: [],
@@ -64,7 +68,11 @@
 
   function recentToolIds() {
     try {
-      const recent = JSON.parse(sessionStorage.getItem('become-lifestyle-recent') || '[]');
+      const known = new Set(TOOLS.map((t) => t.id));
+      const recent = JSON.parse(sessionStorage.getItem('become-lifestyle-recent') || '[]').filter(
+        (id) => known.has(id)
+      );
+      sessionStorage.setItem('become-lifestyle-recent', JSON.stringify(recent));
       const pinned = ['food', 'weight'];
       return [...pinned, ...recent.filter((id) => !pinned.includes(id))].slice(0, 5);
     } catch {
