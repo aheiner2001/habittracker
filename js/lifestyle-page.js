@@ -149,6 +149,25 @@
 
   function toolPanelHtml(today, fasting, windowDays) {
     if (activeTool === 'food') {
+      const frequent = Become.frequentFoods(state, 8);
+      const quickHtml = frequent.length
+        ? `<div class="food-quick">
+            <p class="day-dash-label">Quick picks</p>
+            <div class="food-quick-list">
+              ${frequent
+                .map((f) => {
+                  const grams = f.lastGrams || f.defaultGrams || 100;
+                  const cals = Math.round((f.calPerG || 0) * grams);
+                  return `<button type="button" class="food-quick-chip" data-quick-food="${f.id}" data-quick-grams="${grams}">
+                    <span class="food-quick-name">${f.name}</span>
+                    <span class="food-quick-meta">${grams}g · ${cals} kcal</span>
+                  </button>`;
+                })
+                .join('')}
+            </div>
+          </div>`
+        : `<p class="meta" style="margin-top:0.65rem">Add foods under Meals to build quick picks.</p>`;
+
       return `
         <section class="panel panel-span">
           <h2>${fasting ? 'Fasting' : 'Log food'}</h2>
@@ -171,6 +190,7 @@
                     </div>
                   </div>
                 </form>
+                ${quickHtml}
                 <div class="form-grid" style="margin-top:0.85rem">
                   <div class="field">
                     <label for="apply-tmpl">Template</label>
@@ -510,6 +530,15 @@
         render();
       });
     }
+
+    root.querySelectorAll('[data-quick-food]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const foodId = btn.getAttribute('data-quick-food');
+        const grams = Number(btn.getAttribute('data-quick-grams')) || 100;
+        persist(Become.logFood(state, today, { foodId, grams }));
+        render();
+      });
+    });
 
     const water = root.querySelector('[data-act="log-water"]');
     if (water) {

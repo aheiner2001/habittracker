@@ -122,6 +122,26 @@
     return next;
   }
 
+  function frequentFoods(state, limit = 8) {
+    const counts = {};
+    Object.values(state.foodLogs || {}).forEach((day) => {
+      (day || []).forEach((entry) => {
+        if (!entry.foodId) return;
+        counts[entry.foodId] = (counts[entry.foodId] || 0) + 1;
+      });
+    });
+    const ranked = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => state.foods.find((f) => f.id === id))
+      .filter(Boolean);
+
+    if (ranked.length >= limit) return ranked.slice(0, limit);
+
+    const seen = new Set(ranked.map((f) => f.id));
+    const rest = state.foods.filter((f) => !seen.has(f.id));
+    return [...ranked, ...rest].slice(0, limit);
+  }
+
   Object.assign(Become, {
     addFood,
     logFood,
@@ -131,6 +151,7 @@
     logMeal,
     saveMealTemplate,
     applyTemplate,
+    frequentFoods,
   });
 
   if (typeof module !== 'undefined' && module.exports) {
@@ -143,6 +164,7 @@
       logMeal,
       saveMealTemplate,
       applyTemplate,
+      frequentFoods,
     };
   }
 })(typeof globalThis !== 'undefined' ? globalThis : window);

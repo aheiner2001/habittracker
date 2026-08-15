@@ -499,11 +499,50 @@ p {
   visibility: hidden;
 }
 
-.passage {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  line-height: 1.4;
-  margin: 0.25rem 0 0;
+.food-quick {
+  margin-top: 0.9rem;
+}
+
+.food-quick-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.food-quick-chip {
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  min-height: 52px;
+}
+
+.food-quick-chip:active,
+.food-quick-chip:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.food-quick-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.food-quick-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (min-width: 520px) {
+  .food-quick-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* Lifestyle day dashboard + tools */
