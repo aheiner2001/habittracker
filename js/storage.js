@@ -34,11 +34,29 @@
         weightAvgWindow: 7,
         showMeasurementsOnHome: false,
         units: 'lb',
+        eatingWindowOpen: '12:00',
+        eatingWindowClose: '18:00',
+        eatingWindowEnabled: true
       },
       goal: {
         startWeight: null,
         goalWeight: null,
         milestones: [],
+      },
+      rpg: {
+        characterName: 'Paladin',
+        avatarIcon: '🧙',
+        level: 1,
+        totalXP: 0,
+        stats: {
+          health: 10,
+          discipline: 10,
+          focus: 10,
+          knowledge: 10,
+          kindness: 10
+        },
+        bounceBackHistory: [],
+        showingUpDays: []
       },
       habits: [],
       habitCompletions: {},
@@ -55,6 +73,9 @@
       adaptiveSuggestion: null,
       weeklySummaries: [],
       dismissedCelebrations: [],
+      thoughtRecords: [],
+      whyWall: [],
+      activeBounceBack: null
     };
   }
 
@@ -67,7 +88,12 @@
       if (!parsed || typeof parsed !== 'object' || parsed.version !== 1) {
         return defaultState();
       }
-      return { ...defaultState(), ...parsed, settings: { ...defaultState().settings, ...(parsed.settings || {}) } };
+      return {
+        ...defaultState(),
+        ...parsed,
+        settings: { ...defaultState().settings, ...(parsed.settings || {}) },
+        rpg: { ...defaultState().rpg, ...(parsed.rpg || {}) }
+      };
     } catch {
       return defaultState();
     }
@@ -106,7 +132,12 @@
         throw new Error('Unsupported version or shape');
       }
     }
-    return parsed;
+    return {
+      ...defaultState(),
+      ...parsed,
+      settings: { ...defaultState().settings, ...(parsed.settings || {}) },
+      rpg: { ...defaultState().rpg, ...(parsed.rpg || {}) }
+    };
   }
 
   Object.assign(Become, {
